@@ -12,6 +12,7 @@ import Text.HTML.TagSoup(fromAttrib,
 import Data.List(isPrefixOf,
                  isSuffixOf)
 import Control.Arrow((&&&))
+import Data.Tuple(swap)
 
 -- |Filter prev/next links.
 prevNext :: [ Tag String ] -> (Maybe String, Maybe String)
@@ -31,6 +32,16 @@ links = filter (isPrefixOf "paper.jsp").map (fromAttrib "href").filter (isTagOpe
 collectPage :: [ Tag String ] -> ([ String ], (Maybe String,Maybe String))
 collectPage = links &&& prevNext
 
+-- |Collect all paper links
+paperLinks :: IO [ String ]
+paperLinks = do
+  f <- firstPage
+  let page = collectPage $ parseTags f
+  prev <- previousPages page
+  next <- nextPages ([], snd page)
+  return $ prev ++ next
+  
+
 -- |Get first page of query.
 firstPage = body "http://tinyurl.com/mczfmz9"
 
@@ -41,6 +52,7 @@ previousPages (uris, (Just p, _)) = do
   b <- body $ "http://search.arxiv.org:8081/" ++ p
   let (uris', np) = collectPage $ parseTags b
   previousPages (uris ++ uris', np)
+
 
 -- |Follow all `Next` links till end of search and collect paper links.
 nextPages :: ([ String ], (Maybe String,Maybe String)) -> IO [ String ]
