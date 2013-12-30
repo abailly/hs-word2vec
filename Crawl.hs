@@ -29,7 +29,10 @@ import Control.Concurrent.MVar(newEmptyMVar,
                                putMVar)
 import Control.Concurrent(forkIO,
                           killThread)
+import System.FilePath(splitExtension)
 import System.Posix.Files(fileExist)
+import System.Process(system)
+import System.Exit(ExitCode(..))
 
 -- |Filter prev/next links.
 prevNext :: [ Tag String ] -> (Maybe String, Maybe String)
@@ -87,8 +90,8 @@ allPaperIds = do
   f <- firstPage
   let page = collectPage $ parseTags f
   prev <- previousPages page
-  -- next <- nextPages ([], snd page)
-  return $ map paperId $ prev -- ++ next
+  next <- nextPages ([], snd page)
+  return $ map paperId $ prev ++ next
 
 -- |Construct an URI to a paper's PDF from an id
 pdfURI id = fromJust $ parseURI $ "http://arxiv.org/pdf/" ++ id ++ "v1.pdf"
@@ -111,7 +114,7 @@ downloadPDF id =  do
 -- |Run a thread pool for executing concurrent computations
 runInThreadPool :: Int          -- number of threads to run concurrently
                    -> [ String ]     -- list of ids to download
-                   -> IO ()  
+                   -> IO [ String ]
 runInThreadPool numThreads ids = do
   inChan <- newEmptyMVar
   outChan <- newEmptyMVar
@@ -119,20 +122,30 @@ runInThreadPool numThreads ids = do
   forkIO $ mapM_ (putMVar inChan) ids
   files <- mapM (const $ takeMVar outChan) ids
   mapM_ killThread tids
-  putStrLn $ "retrieved files " ++ show files
+  return files
     where
       compute inChan outChan = do
         id <- takeMVar inChan
-        putStrLn $ "handling " ++ id
         f <- downloadPDF id
         putMVar outChan f
-        putStrLn $ "handled " ++ id
         compute inChan outChan
         
           
 -- |Dowload all PDF of papers
-downloadPDFs :: IO ()
+downloadPDFs :: IO [ String ] 
 downloadPDFs = do
   ids <- allPaperIds
-  mapM_ downloadPDF ids
+  runInThreadPool 10 ids
 
+-- | Convert a PDF file to text.
+--
+-- This assumes `pdftotext` is available in the PATH.
+convertToText :: String        -- file path
+                 -> IO String  -- Converted file
+convertToText pdf = do
+  let txt = fst (splitExtension pdf) ++ ".txt"
+  exit <- system $ "pdftotext " ++ pdf
+  case exit of
+    ExitSuccess   -> return txt
+    ExitFailure _ -> return ""
+      
