@@ -29,6 +29,9 @@ data Huffman a =  Node (Huffman a) (Huffman a)
                | Leaf a
 
 data Coding = Coding {
+  -- Index of word in corpus
+  index      :: Int,
+  
   -- Frequency of word in corpus
   frequency  :: Int,
   
@@ -43,17 +46,30 @@ data Coding = Coding {
 code :: HashMap String Int -> HashMap String Coding
 code _ = empty
 
-newtype WordFreq = WF (String, Int) deriving (Eq, Show)
+newtype Word = WF { unWf :: (String, Coding) } deriving (Eq, Show)
 
-instance Ord WordFreq where
+instance Ord Word where
   compare (WF (_,x)) (WF (_,y)) = compare x y
   
--- | Build a heap from hashmap of words
---
--- >>> heapify (fromList [("foo",3), ("bar",2)])
--- fromList [(WF ("bar",2),()),(WF ("foo",3),())]
-heapify :: HashMap String Int -> H.MinHeap WordFreq
-heapify = foldl (flip H.insert) H.empty . map WF . toList
+instance Ord Coding where
+  compare (Coding _ f _ _ ) (Coding _ f' _ _ ) = compare f f'
+
+buildWord ::  ([Word],Int) -> (String, Int) -> ([Word],Int)
+buildWord (ws, n) (w,f) = ((WF (w,Coding n f [] [])):ws, n+1)
+
+-- |Returns the list of words stored in given heap in ascending order.
+ascWords :: H.MinHeap Word -> [ String ]
+ascWords = map fst . map unWf . H.toAscList
+
+-- |Build a heap from hashmap of words frequencies.
+-- 
+-- The heap is built with the frequency as ordering factor. Each word is built into a `Word`
+-- object that contains the frequency, the index of the word relative to size of vocabulary.
+--  
+-- >>> ascWords $ heapify (fromList [("foo",3), ("bar",2)])
+-- ["bar","foo"]
+heapify :: HashMap String Int -> H.MinHeap Word
+heapify = foldl (flip H.insert) H.empty . fst . foldl buildWord ([],0) . toList
 
 -- # Tests
     
