@@ -3,7 +3,7 @@
 -- | Assign codes and inner layer to each word according to Huffman coding
 module Huffman where
 import Data.HashMap.Strict(empty,
-                         insertWith,
+                         insert,
                          HashMap,
                          toList,
                          fromList)
@@ -83,10 +83,8 @@ instance Ord Huffman where
 
 -- | Build a tree from heap with only words
 --
--- >>> ascWords $ arborify $ heapify (fromList [("foo",3), ("bar",2)])
--- []
 arborify ::  H.MinHeap Huffman -> H.MinHeap Huffman
-arborify h = foldl buildTree h [sizeOfVocabulary .. sizeOfVocabulary*2 -1]
+arborify h = foldl buildTree h [0.. sizeOfVocabulary -1]
   where
     sizeOfVocabulary = H.size h
     buildTree h n    = let (min1,h1) = fromJust $ H.view h
@@ -97,9 +95,17 @@ arborify h = foldl buildTree h [sizeOfVocabulary .. sizeOfVocabulary*2 -1]
                                                       []
                                                       [])) h2
                          Nothing        -> h
-                        
-                           
-      
+
+                         
+encode :: H.MinHeap Huffman -> HashMap String Coding
+encode h = encode' (fst $ fromJust $ H.view h) [] [] empty
+  where
+    encode' (Leaf w c)     code points map = insert w c { huffman = code, wordPoints = points } map
+    encode' (Node left right c) code points map = let pts = index c : points
+                                                      m1  = encode' left (Zero:code) pts map
+                                                      m2  = encode' right (One:code) pts m1
+                                                  in
+                                                   m2
   
 -- # Tests
     
