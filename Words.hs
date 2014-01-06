@@ -10,7 +10,7 @@ import Data.HashMap.Strict(empty,
                          insertWith,
                          HashMap,
                          toList)
-
+import Huffman
 
 -- |Index a list of words into a frequency map
 indexWord :: HashMap String Int -> String -> HashMap String Int
@@ -20,12 +20,10 @@ indexWord m w = insertWith (+) w 1 m
 tokenizeString :: String -> [ String ]
 tokenizeString = map (map toLower).filter (=~ "^[a-zA-Z-]+$").tokenize
 
--- |Extract the words of a file
+-- |Encode the words of a file
 tokenizeFile :: String   -- file path
-         -> IO [(String,Int)]
+         -> IO (HashMap String Coding)
 tokenizeFile file =
   readFile file >>=
   return.
-  sortBy freq.toList.foldl indexWord empty.tokenizeString
-  where
-    freq a b = compare (snd a) (snd b)
+  huffmanEncode . foldl indexWord empty.tokenizeString

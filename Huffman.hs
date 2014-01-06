@@ -1,7 +1,10 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 -- | Assign codes and inner layer to each word according to Huffman coding
-module Huffman where
+module Huffman(Code,
+               Bin(..),
+               Coding(..),
+               huffmanEncode) where
 import Data.HashMap.Strict(empty,
                          insert,
                          HashMap,
@@ -41,8 +44,8 @@ data Coding = Coding {
   wordPoints :: [Int]
   } deriving (Eq, Show, Read)
              
-code :: HashMap String Int -> HashMap String Coding
-code _ = empty
+huffmanEncode :: HashMap String Int -> HashMap String Coding
+huffmanEncode = encode . arborify . heapify
 
 instance Ord Coding where
   compare (Coding _ f _ _ ) (Coding _ f' _ _ ) = compare f f'
