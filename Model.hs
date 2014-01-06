@@ -2,9 +2,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 -- |Neural network based model of words similarity
 module Model where
-import System.Random(random,getStdGen)
+import Control.Monad(foldM)
+import System.Random(random,randomR,getStdGen,RandomGen,mkStdGen)
+import Data.HashMap.Strict(HashMap,empty)
 import Matrix
-  
+import Huffman
+import Window
+
 data Model = Model {
   -- Size of the model or number of dimensions each word is mapped to
   modelSize :: Int,
@@ -23,9 +27,46 @@ data Model = Model {
   -- The hidden -> output connection matrix
   --
   -- syn1 is the original name in C word2vec implementation
-  syn1 :: Matrix }
-             
+  syn1 :: Matrix,
 
+  -- The vocabulary
+  -- Each word is mapped to a Coding structure containing, among other things,
+  -- the Huffman encoding of the word and references to inner nodes this word is connected to
+  vocabulary :: HashMap String Coding,
+
+  -- Size of training window
+  window :: Int
+  }
+
+defaultWindow :: Int
+defaultWindow = 10
+
+-- |Train given model with a single sentence.
+--
+-- This function updates the model using skip-gram hierarchical softmax model on a single sentence
+-- For each word in the sentence:
+--
+-- * Define a random training window around the word
+-- * Iterate over all words in the window, updating the underlying neural network 
+trainSentence :: Model
+              -> [String]
+              -> Double
+              -> IO Model
+trainSentence m sentence alpha = do
+  g <- getStdGen
+  foldM (trainWord alpha) m (slidingWindows (window m) g sentence)
+
+
+
+      
+trainWord :: Double              -- alpha threshold 
+          -> Model               -- model to train
+          -> (String,[String])   -- prefix, word, suffix to select window around word
+          -> IO Model            -- updated model
+trainWord alpha m (word,words) = do
+  
+  return m
+  
 -- |Initializes a model of given size
 --
 -- The output connections are initialized to 0 while the hidden connections are
@@ -36,7 +77,7 @@ model :: Int        -- dimensions
 model dim words = do
   s0 <- randomConnectionValues words dim
   s1 <- emptyMatrix (words, dim)
-  return $ Model dim words s0 s1
+  return $ Model dim words s0 s1 empty defaultWindow
 
 -- |Initialize the connection matrix with random values.
 --
