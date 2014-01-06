@@ -8,6 +8,7 @@ import Data.HashMap.Strict(empty,
                          toList,
                          fromList)
 import qualified Data.Heap as H
+import Data.Maybe(fromJust)
 
 data Bin = Zero | One deriving (Eq, Ord, Show, Read)
 
@@ -25,9 +26,6 @@ instance Enum Code where
   fromEnum (Zero:b) = 2 * fromEnum b
   fromEnum (One:b)  = 2 * fromEnum b + 1
   
-data Huffman a =  Node (Huffman a) (Huffman a)
-               | Leaf a
-
 data Coding = Coding {
   -- Index of word in corpus
   index      :: Int,
@@ -46,21 +44,18 @@ data Coding = Coding {
 code :: HashMap String Int -> HashMap String Coding
 code _ = empty
 
-newtype Word = WF { unWf :: (String, Coding) } deriving (Eq, Show)
-
-instance Ord Word where
-  compare (WF (_,x)) (WF (_,y)) = compare x y
-  
 instance Ord Coding where
   compare (Coding _ f _ _ ) (Coding _ f' _ _ ) = compare f f'
 
-buildWord ::  ([Word],Int) -> (String, Int) -> ([Word],Int)
-buildWord (ws, n) (w,f) = ((WF (w,Coding n f [] [])):ws, n+1)
+buildWord ::  ([Huffman],Int) -> (String, Int) -> ([Huffman],Int)
+buildWord (ws, n) (w,f) = ((Leaf w (Coding n f [] [])):ws, n+1)
 
 -- |Returns the list of words stored in given heap in ascending order.
-ascWords :: H.MinHeap Word -> [ String ]
-ascWords = map fst . map unWf . H.toAscList
-
+ascWords :: H.MinHeap Huffman -> [ String ]
+ascWords = map unWord . H.toAscList
+  where
+    unWord (Leaf w _) = w
+    
 -- |Build a heap from hashmap of words frequencies.
 -- 
 -- The heap is built with the frequency as ordering factor. Each word is built into a `Word`
@@ -68,9 +63,44 @@ ascWords = map fst . map unWf . H.toAscList
 --  
 -- >>> ascWords $ heapify (fromList [("foo",3), ("bar",2)])
 -- ["bar","foo"]
-heapify :: HashMap String Int -> H.MinHeap Word
+heapify :: HashMap String Int -> H.MinHeap Huffman
 heapify = foldl (flip H.insert) H.empty . fst . foldl buildWord ([],0) . toList
 
+data Huffman =  Node Huffman Huffman Coding
+               | Leaf String Coding
+                 deriving (Eq,Show)
+
+freq :: Huffman -> Int
+freq (Node _ _ (Coding _ f _ _)) = f
+freq (Leaf _ (Coding _ f _ _)) = f
+
+instance Ord Huffman where
+  compare (Node _ _ c)      (Node _ _ c')      = compare c c'
+  compare (Node _ _ c)      (Leaf _ c') = compare c c'
+  compare (Leaf _ c) (Node _ _ c')      = compare c c'
+  compare (Leaf _ c) (Leaf _ c') = compare c c'
+
+
+-- | Build a tree from heap with only words
+--
+-- >>> ascWords $ arborify $ heapify (fromList [("foo",3), ("bar",2)])
+-- []
+arborify ::  H.MinHeap Huffman -> H.MinHeap Huffman
+arborify h = foldl buildTree h [sizeOfVocabulary .. sizeOfVocabulary*2 -1]
+  where
+    sizeOfVocabulary = H.size h
+    buildTree h n    = let (min1,h1) = fromJust $ H.view h
+                       in case H.view h1 of
+                         Just (min2,h2) -> H.insert (Node min1 min2
+                                                     (Coding n
+                                                      (freq min1 + freq min2)
+                                                      []
+                                                      [])) h2
+                         Nothing        -> h
+                        
+                           
+      
+  
 -- # Tests
     
 -- | test Enum implementation
