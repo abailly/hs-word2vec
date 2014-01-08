@@ -4,7 +4,7 @@
 module Model where
 import Control.Monad(foldM)
 import System.Random(random,randomR,getStdGen,RandomGen,mkStdGen)
-import Data.HashMap.Strict(HashMap,empty)
+import qualified Data.HashMap.Strict as M
 import Matrix
 import Huffman
 import Window
@@ -32,7 +32,7 @@ data Model = Model {
   -- The vocabulary
   -- Each word is mapped to a Coding structure containing, among other things,
   -- the Huffman encoding of the word and references to inner nodes this word is connected to
-  vocabulary :: HashMap String Coding,
+  vocabulary :: M.HashMap String Coding,
 
   -- Size of training window
   window :: Int
@@ -54,19 +54,49 @@ trainSentence :: Model
               -> IO Model
 trainSentence m sentence alpha = do
   g <- getStdGen
-  foldM (trainWord alpha) m (slidingWindows (window m) g sentence)
-
-
+  foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
 
       
-trainWord :: Double              -- alpha threshold 
+trainWindow :: Double              -- alpha threshold 
           -> Model               -- model to train
           -> (String,[String])   -- prefix, word, suffix to select window around word
           -> IO Model            -- updated model
-trainWord alpha m (word,words) = do
+trainWindow alpha m (word,words) =
+  foldM (trainWord alpha word) m (filter (/= word) words)
+
+trainWord :: Double    -- alpha threshold 
+          -> String    -- reference word
+          -> Model     -- model to train
+          -> String    -- word to learn
+          -> IO Model
+trainWord alpha ref m word = do
+  let h = vocabulary m
+  let Just (Coding index _ huff points) = M.lookup ref h
+  let Just (Coding index' _ huff' points') = M.lookup word h
+  -- this a vector of modelSize columns
+  inputLayer  <- subMatrix [index'] (syn0 m) 
+  -- this is a subMatrix of n rows each modelSize column
+  -- where n is the length of huffman encoding
+  hiddenLayer <- subMatrix points (syn1 m) 
+  -- this is a vector of encoding length columns
+  let propagate = inputLayer `matrixProduct` (transpose hiddenLayer)
+  let [one] = matrixFromList 1 (cols propagate) [1,1 .. ]
+  -- this is a vector of encoding length columns
+  let fa = 1.0 `divideScalar` (one `plus` matrixExp (one `minus` propagate))
+  -- this is again a vector of encoding length columns representing the error gradients
+  -- time learning rate alpha
+  let ga = (one `minus` toMatrix huff `minus` fa) `scalarProduct` alpha
+  -- this is a encoding length x modelSize matrix
+  let prod = ga `outerProduct` inputLayer
+  -- learn hidden -> output
+  -- add the two matrices
+  syn1'<- writeMatrix (syn1 m) points (hiddenLayer `plus` prod)
+  -- learn input -> hidden
+  syn0' <- writeMatrix (syn0 m) [index'] (inputLayer `plus` (ga `matrixProduct` hiddenLayer))
+  return $ m { syn0 = syn0', syn1 = syn1'} 
+
   
-  return m
-  
+          
 -- |Initializes a model of given size
 --
 -- The output connections are initialized to 0 while the hidden connections are
@@ -77,7 +107,7 @@ model :: Int        -- dimensions
 model dim words = do
   s0 <- randomConnectionValues words dim
   s1 <- emptyMatrix (words, dim)
-  return $ Model dim words s0 s1 empty defaultWindow
+  return $ Model dim words s0 s1 M.empty defaultWindow
 
 -- |Initialize the connection matrix with random values.
 --
@@ -90,8 +120,10 @@ randomConnectionValues :: Int       -- number of rows
                        -> IO Matrix -- initialized matrix 
 randomConnectionValues rows cols = do
   g <- getStdGen
-  m <- emptyMatrix (rows,cols)
-  foldMatrix ( \ g _ _ _ ->
-                let (i,g') = random g 
-                in (g',(i- 0.5) / fromIntegral cols)) g m >>= return.snd
+  -- TODO divide each row's values by cols
+  matrixFromList rows cols (randoms g)
+
+randoms :: RandomGen g => g -> [ Double ]
+randoms g = let (i,g') = random g
+            in (i - 0.5) : randoms g'
   

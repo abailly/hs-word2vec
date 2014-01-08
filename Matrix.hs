@@ -5,10 +5,16 @@ module Matrix(Matrix,
               printMatrix,
               updateMatrix,
               subMatrix,
-              matrixProduct, outerProduct, plus,
+              matrixProduct, outerProduct,
+              scalarProduct,
+              divideScalar,
+              matrixExp,
+              plus,
+              minus,
               writeMatrix,
               transpose,
-              matrixFromList
+              matrixFromList,
+              cols, rows
              ) where
 import Control.Monad(mapM, forM, forM_, foldM, liftM3)
 import Data.Array.IO(
@@ -17,8 +23,9 @@ import Data.Array.IO(
   newArray,
   readArray,
   writeArray)
-import qualified Data.Packed.Matrix as M
-import Data.List(intersperse)
+import qualified Numeric.LinearAlgebra as M
+import Data.List(intersperse,
+                 mapAccumL)
 
 -- | Define a 2D Matrix stored in IO as a single dimensional array
 data Matrix = Matrix {
@@ -32,33 +39,54 @@ data Matrix = Matrix {
 
 -- |Select a part (view) of a Matrix
 --
--- The returned matrix is mutable and tied to the original matrix, so modifying it
--- will modify the input matrix'data
-subMatrix :: Matrix      -- input matrix
-          -> [Int]       -- a list of row indices to select
-          -> IO Matrix   -- sub-matrix from input
-subMatrix m _ = return m
+-- >>> (matrixFromList 3 3 (map fromIntegral [0 ..])) >>= subMatrix [0,2] >>= printMatrix >>= putStrLn
+-- [0.0,1.0,2.0]
+-- [6.0,7.0,8.0]  
+subMatrix :: (Monad m) => [Int]       -- a list of row indices to select
+          -> Matrix      -- input matrix
+          -> m Matrix   -- sub-matrix from input
+subMatrix rows m = return $ m { rawData = M.extractRows rows (rawData m) }
 
 -- |Product of two matrices
---
 matrixProduct :: Matrix -> Matrix -> Matrix
-matrixProduct m n = m
+matrixProduct m n = Matrix  (rawData m M.<> rawData n) (rows m) (cols n)
+
+scalarProduct :: Matrix -> Double -> Matrix
+scalarProduct m x = m {rawData = M.mapMatrix (* x) (rawData m ) }
+
+divideScalar :: Double -> Matrix -> Matrix
+divideScalar x m = m {rawData = M.mapMatrix (x /) (rawData m ) }
+
+matrixExp :: Matrix -> Matrix
+matrixExp m = m { rawData = exp (rawData m) }
 
 -- |Sum of two matrices
---
 plus :: Matrix -> Matrix -> Matrix
-plus m n = m
+plus m n = Matrix (rawData m + rawData n) (rows m) (cols m)
+
+-- |Difference of two matrices
+minus :: Matrix -> Matrix -> Matrix
+minus m n = Matrix (rawData m - rawData n) (rows m) (cols m)
 
 -- |Transposition of matrices
 transpose :: Matrix -> Matrix
-transpose m = m
+transpose m = Matrix (M.trans $ rawData m) (cols m) (rows m)
 
 -- |Outer product of two vectors
 outerProduct :: Matrix -> Matrix -> Matrix
 outerProduct m n = m `matrixProduct` (transpose n)
 
-writeMatrix :: Matrix -> Matrix -> IO ()
-writeMatrix m n = return ()
+-- | Overwrite the given rows of a matrix with the last argument.
+--
+writeMatrix :: (Monad m) => Matrix -> [Int] -> Matrix -> m Matrix
+writeMatrix m indices n = do
+  let updatedRows = zip indices (M.toRows (rawData n))
+  let accum (idx,upd) actual =  if (upd /= []) && fst (head upd)  == idx then
+                                  ((idx + 1, tail upd), snd (head upd))
+                                else
+                                  ((idx + 1, upd), actual)
+  return $ Matrix (M.fromRows (snd $ mapAccumL accum (0,updatedRows) (M.toRows (rawData m)))) (rows m) (cols n)
+  
 
 -- |Iterate over all cells of a Matrix, row by row and col by col, applying side effect
 --
