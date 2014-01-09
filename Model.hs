@@ -43,6 +43,26 @@ data Model = Model {
 defaultWindow :: Int
 defaultWindow = 10
 
+-- | Raw coefficients of given word
+--
+coefficient :: (Monad m) => Model -> String -> m Matrix
+coefficient m w = do
+  let h = vocabulary m
+  let Just (Coding index _ huff points) = M.lookup w h
+  subMatrix [index] (syn0 m)
+  
+-- | Compute similarity between two words
+--
+-- Uses the cosine similarity, eg. dot product between the two vectors. The vectors should be of
+-- norm.
+similarity :: (Monad m) => Model -> String -> String -> m Double
+similarity m u v = do
+  u'<- coefficient m u
+  v'<- coefficient m v
+  let vecU = unitVector u'
+  let vecV = unitVector v'
+  return $ vecU `dotProduct` vecV
+
 -- | Train a model using a dictionary and a list of sentences
 trainModel :: Dictionary -> [[String]] -> IO Model
 trainModel dict sentences = do
@@ -82,7 +102,7 @@ trainWord alpha ref m word = do
   let h = vocabulary m
   let Just (Coding index _ huff points) = M.lookup ref h
   let Just (Coding index' _ huff' points') = M.lookup word h
-  -- this a vector of modelSize columns
+  -- this a vector of encoding length columns
   inputLayer  <- subMatrix [index'] (syn0 m)
   -- this is a square subMatrix of n rows plus zeros, each modelSize column
   -- where n is the length of huffman encoding

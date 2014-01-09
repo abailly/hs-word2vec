@@ -8,13 +8,15 @@ module Matrix(Matrix(..),
               squaredMatrix,
               matrixProduct, outerProduct,
               scalarProduct,
+              dotProduct,
               divideScalar,
               matrixExp,
               plus,
               minus,
               writeMatrix,
               transpose,
-              matrixFromList
+              matrixFromList,
+              unitVector
              ) where
 import Control.Monad(mapM, forM, forM_, foldM, liftM3)
 import Data.Array.IO(
@@ -103,9 +105,38 @@ transpose :: Matrix -> Matrix
 transpose m = Matrix (M.trans $ rawData m) (cols m) (rows m)
 
 -- |Outer product of two vectors
+--
+-- >>> matrix [[1,1,1,1]] >>= (\ m -> matrix [[1,1,1,1]] >>= return.outerProduct m) >>= printMatrix >>= putStrLn
+-- [4.0]
 outerProduct :: Matrix -> Matrix -> Matrix
 outerProduct m n = m `matrixProduct` (transpose n)
 
+-- | Inner product of two vectors
+--
+-- >>> matrix [[0,1]] >>= (\ m -> matrix [[0,1]] >>= return.dotProduct m) >>= putStrLn.show
+-- 1.0
+--
+-- >>> matrix [[1,1]] >>= (\ m -> matrix [[-1,1]] >>= return.dotProduct m) >>= putStrLn.show
+-- 0.0
+dotProduct :: Matrix -> Matrix -> Double
+dotProduct m n = let m' = M.flatten $ rawData m
+                     n' = M.flatten $ rawData n
+                 in  m' M.<.> n'
+
+-- | Normalize a vector to unit length
+--
+-- Assume number of rows is one...
+-- >>> matrix [[2,0]] >>= return. unitVector >>= printMatrix >>= putStrLn
+-- [1.0,0.0]
+-- >>> matrix [[0,0],[0,2]] >>= return. unitVector >>= printMatrix >>= putStrLn
+-- [0.0,0.0]
+-- [0.0,1.0]
+unitVector :: Matrix -> Matrix
+unitVector m = let m' = rawData m
+                   v = M.flatten m'
+                   norm = sqrt $ v M.<.> v 
+               in Matrix (M.mapMatrix (/ norm) m') (rows m) (cols m)
+  
 -- | Overwrite the given rows of a matrix with the last argument.
 --
 writeMatrix :: (Monad m) => Matrix -> [Int] -> Matrix -> m Matrix
