@@ -3,18 +3,20 @@
 -- |Neural network based model of words similarity
 module Model where
 import Control.Monad(foldM)
+import Control.Concurrent(threadDelay)
 import System.Random(random,randomR,getStdGen,RandomGen,mkStdGen)
 import qualified Data.HashMap.Strict as M
 import Matrix
 import Huffman
 import Window
+import Words
 
 data Model = Model {
-  -- Size of the model or number of dimensions each word is mapped to
-  modelSize :: Int,
-  
   -- Number of words in the model
   numberOfWords :: Int,
+  
+  -- Size of the model or number of dimensions each word is mapped to
+  modelSize :: Int,
   
   -- The input -> hidden connection matrix
   -- input layer has size equal to number of words in vocabulary, with each
@@ -41,6 +43,13 @@ data Model = Model {
 defaultWindow :: Int
 defaultWindow = 10
 
+-- | Train a model using a dictionary and a list of sentences
+trainModel :: Dictionary -> [[String]] -> IO Model
+trainModel dict sentences = do
+  theModel <- fromDictionary dict
+  let alpha = 0.001
+  foldM (trainSentence alpha) theModel sentences
+
 -- |Train given model with a single sentence.
 --
 -- This function updates the model using skip-gram hierarchical softmax model on a single sentence
@@ -48,11 +57,11 @@ defaultWindow = 10
 --
 -- * Define a random training window around the word
 -- * Iterate over all words in the window, updating the underlying neural network 
-trainSentence :: Model
+trainSentence :: Double
+              -> Model
               -> [String]
-              -> Double
               -> IO Model
-trainSentence m sentence alpha = do
+trainSentence alpha m sentence = do
   g <- getStdGen
   foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
 
@@ -61,7 +70,7 @@ trainWindow :: Double              -- alpha threshold
           -> Model               -- model to train
           -> (String,[String])   -- prefix, word, suffix to select window around word
           -> IO Model            -- updated model
-trainWindow alpha m (word,words) =
+trainWindow alpha m (word,words) = 
   foldM (trainWord alpha word) m (filter (/= word) words)
 
 trainWord :: Double    -- alpha threshold 
@@ -74,40 +83,51 @@ trainWord alpha ref m word = do
   let Just (Coding index _ huff points) = M.lookup ref h
   let Just (Coding index' _ huff' points') = M.lookup word h
   -- this a vector of modelSize columns
-  inputLayer  <- subMatrix [index'] (syn0 m) 
-  -- this is a subMatrix of n rows each modelSize column
+  inputLayer  <- subMatrix [index'] (syn0 m)
+  -- this is a square subMatrix of n rows plus zeros, each modelSize column
   -- where n is the length of huffman encoding
-  hiddenLayer <- subMatrix points (syn1 m) 
+  -- we complete to 0 in order to ensure that downstream computations are consistent as the
+  -- original encoding yield fewer points for larger frequencies
+  hiddenLayer <- squaredMatrix points (syn1 m) 
   -- this is a vector of encoding length columns
   let propagate = inputLayer `matrixProduct` (transpose hiddenLayer)
   let [one] = matrixFromList 1 (cols propagate) [1,1 .. ]
   -- this is a vector of encoding length columns
   let fa = 1.0 `divideScalar` (one `plus` matrixExp (one `minus` propagate))
+  -- A matrix (actually a vector) of 0 and 1 built from the huffman encoding of the current
+  -- word. The vector is completed with 0s to ensure it has a consistent number of columns
+  let huffMatrix = toMatrix (cols propagate) huff
   -- this is again a vector of encoding length columns representing the error gradients
   -- time learning rate alpha
-  let ga = (one `minus` toMatrix huff `minus` fa) `scalarProduct` alpha
+  let ga = (one `minus` huffMatrix `minus` fa) `scalarProduct` alpha
   -- this is a encoding length x modelSize matrix
   let prod = ga `outerProduct` inputLayer
+  let hiddenToOutput =  (hiddenLayer `plus` prod)
   -- learn hidden -> output
   -- add the two matrices
-  syn1'<- writeMatrix (syn1 m) points (hiddenLayer `plus` prod)
+  syn1'<- writeMatrix (syn1 m) points hiddenToOutput
   -- learn input -> hidden
-  syn0' <- writeMatrix (syn0 m) [index'] (inputLayer `plus` (ga `matrixProduct` hiddenLayer))
+  let inputToHidden = (inputLayer `plus` (ga `matrixProduct` hiddenLayer))
+  syn0' <- writeMatrix (syn0 m) [index']  inputToHidden
   return $ m { syn0 = syn0', syn1 = syn1'} 
 
-  
-          
+
+-- |Construct a model from a Dictionary
+fromDictionary :: Dictionary -> IO Model
+fromDictionary (Dict dict size len) = model size len >>= return . \ m -> m { vocabulary = dict }
+
 -- |Initializes a model of given size
 --
 -- The output connections are initialized to 0 while the hidden connections are
--- initialized to random values in the [-0.5,+0.5] interval.
+-- initialized to random values in the [-0.5,+0.5] interval, then divided by the number of
+-- columns.
 model :: Int        -- dimensions
       -> Int        -- number of words
       -> IO Model
-model dim words = do
+model words dim = do
   s0 <- randomConnectionValues words dim
   s1 <- emptyMatrix (words, dim)
-  return $ Model dim words s0 s1 M.empty defaultWindow
+  return $ Model words dim s0 s1 M.empty defaultWindow
 
 -- |Initialize the connection matrix with random values.
 --
@@ -120,8 +140,7 @@ randomConnectionValues :: Int       -- number of rows
                        -> IO Matrix -- initialized matrix 
 randomConnectionValues rows cols = do
   g <- getStdGen
-  -- TODO divide each row's values by cols
-  matrixFromList rows cols (randoms g)
+  matrixFromList rows cols (map (/fromIntegral cols) (randoms g))
 
 randoms :: RandomGen g => g -> [ Double ]
 randoms g = let (i,g') = random g

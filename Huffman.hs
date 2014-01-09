@@ -24,9 +24,9 @@ asNum Zero = 0
 asNum One  = 1
 
 -- |Transform coding into a vector of 0 and 1
-toMatrix :: Code -> Matrix
-toMatrix code = let [m] = matrixFromList 1 (length code) (map asNum code)
-                in m
+toMatrix :: Int -> Code -> Matrix
+toMatrix len code = let [m] = matrixFromList 1 len ((map asNum code) ++ [0,0..])
+                    in m
 
 instance Enum Code where
   toEnum n = case n `mod` 2 of

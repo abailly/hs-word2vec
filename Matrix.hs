@@ -1,10 +1,11 @@
 -- |Provide simple 2D matrices
-module Matrix(Matrix,
+module Matrix(Matrix(..),
               emptyMatrix,
               matrix,
               printMatrix,
               updateMatrix,
               subMatrix,
+              squaredMatrix,
               matrixProduct, outerProduct,
               scalarProduct,
               divideScalar,
@@ -13,8 +14,7 @@ module Matrix(Matrix,
               minus,
               writeMatrix,
               transpose,
-              matrixFromList,
-              cols, rows
+              matrixFromList
              ) where
 import Control.Monad(mapM, forM, forM_, foldM, liftM3)
 import Data.Array.IO(
@@ -35,7 +35,7 @@ data Matrix = Matrix {
   rows :: Int,
   -- Number of columns
   cols :: Int
-  }
+  } deriving (Show)
 
 -- |Select a part (view) of a Matrix
 --
@@ -45,7 +45,37 @@ data Matrix = Matrix {
 subMatrix :: (Monad m) => [Int]       -- a list of row indices to select
           -> Matrix      -- input matrix
           -> m Matrix   -- sub-matrix from input
-subMatrix rows m = return $ m { rawData = M.extractRows rows (rawData m) }
+subMatrix rows m = return $ Matrix (M.extractRows rows (rawData m)) (length rows) (cols m)
+
+-- |Select some rows of a matrix and complete them to ensure the matrix is square.
+--
+-- This assumes the selection has less rows than columns
+-- 
+-- >>> (matrixFromList 5 3 (map fromIntegral [0 ..])) >>= squaredMatrix [0,2] >>= printMatrix >>= putStrLn
+-- [0.0,1.0,2.0]
+-- [6.0,7.0,8.0]  
+-- [0.0,0.0,0.0]
+--
+-- >>> (matrixFromList 5 4 (map fromIntegral [0 ..])) >>= squaredMatrix [0,2] >>= printMatrix >>= putStrLn
+-- [0.0,1.0,2.0,3.0]
+-- [8.0,9.0,10.0,11.0]  
+-- [0.0,0.0,0.0,0.0]
+-- [0.0,0.0,0.0,0.0]
+--
+-- >>> (matrixFromList 5 3 (map fromIntegral [0 ..])) >>= squaredMatrix [0,2,4] >>= printMatrix >>= putStrLn
+-- [0.0,1.0,2.0]
+-- [6.0,7.0,8.0]  
+-- [12.0,13.0,14.0]
+squaredMatrix :: (Monad m) => [Int]       -- a list of row indices to select
+          -> Matrix      -- input matrix
+          -> m Matrix   -- sub-matrix from input
+squaredMatrix rows m = let missing = cols m - length rows
+                           extracted = M.extractRows rows (rawData m)
+                           square = if missing > 0 then
+                                      (M.fromBlocks $ [[extracted]] ++ replicate missing [0])
+                                    else
+                                      extracted
+                       in return $ Matrix square (M.rows square) (cols m)
 
 -- |Product of two matrices
 matrixProduct :: Matrix -> Matrix -> Matrix
@@ -126,7 +156,7 @@ matrixFromList rows cols values = return $ Matrix ((rows M.>< cols) values) rows
 emptyMatrix :: (Monad m) => (Int,Int) -> m Matrix
 emptyMatrix (r,c) = do
   let a = (r M.>< c) [ 0, 0 ..]
-  return $ Matrix a c r
+  return $ Matrix a r c
 
 -- |Make a mutable matrix from a list of list of double values
 -- Assume matrix is well-formed, eg. all rows have equal number of arguments

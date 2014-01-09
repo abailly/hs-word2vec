@@ -16,14 +16,19 @@ import System.Random(randomR,getStdGen,RandomGen,mkStdGen)
 -- ('d',"badfe")
 -- >>> selectWindow 2 ("",'d', "efg")
 -- ('d',"de")
+-- >>> selectWindow 2 ("",'d', "")
+-- ('d',"d")
+-- >>> selectWindow 3 ("abc",'d', "")
+-- ('d',"bad")
 selectWindow :: Int -> ([a],a,[a]) -> (a,[a])
 selectWindow n (pref,word,suff) = (word, selectWindow' n (pref,word,suff) [] [])
   where
     selectWindow' 1 (pref,word,suff) prefs suffs = prefs ++ (word:suffs)                          
     selectWindow' n ([],word,[])     prefs suffs = prefs ++ (word:suffs)                          
-    selectWindow' n ([],word,suff)   prefs suffs = selectWindow' (n-1) ([],word,tail suff) prefs (head suff :suffs)
-    selectWindow' 2 (pref,word,suff) prefs suffs = selectWindow' 1     (tail pref,word,suff)      (head pref:prefs) suffs
-    selectWindow' n (pref,word,suff) prefs suffs = selectWindow' (n-2) (tail pref,word,tail suff) (head pref:prefs) (head suff: suffs)
+    selectWindow' n ([],word,a:as)   prefs suffs = selectWindow' (n-1) ([],word,as) prefs (a :suffs)
+    selectWindow' n (b:bs,word,[])   prefs suffs = selectWindow' (n-1) (bs,word,[]) (b:prefs) suffs
+    selectWindow' 2 (b:bs,word,suff) prefs suffs = selectWindow' 1     (bs,word,suff)      (b:prefs) suffs
+    selectWindow' n (b:bs,word,a:as) prefs suffs = selectWindow' (n-2) (bs,word,as) (b:prefs) (a: suffs)
     
 
 -- |Generate random sliding windows over a given sentence
