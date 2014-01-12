@@ -32,11 +32,11 @@ import Data.List(intersperse,
 -- | Define a 2D Matrix stored in IO as a single dimensional array
 data Matrix = Matrix {
   -- The raw (Mutable) array of data
-  rawData :: M.Matrix Double,
+  rawData :: !(M.Matrix Double),
   -- Number of rows
-  rows :: Int,
+  rows :: !Int,
   -- Number of columns
-  cols :: Int
+  cols :: !Int
   } deriving (Show)
 
 -- |Select a part (view) of a Matrix

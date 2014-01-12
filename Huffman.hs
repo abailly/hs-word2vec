@@ -13,6 +13,7 @@ import Data.HashMap.Strict(empty,
                          fromList)
 import qualified Data.Heap as H
 import Data.Maybe(fromJust)
+import Control.Parallel(par)
 import Matrix
 
 data Bin = Zero | One deriving (Eq, Ord, Show, Read)
@@ -114,12 +115,11 @@ arborify h = foldl buildTree h [0.. sizeOfVocabulary -1]
 encode :: H.MinHeap Huffman -> HashMap String Coding
 encode h = encode' (fst $ fromJust $ H.view h) [] [] empty
   where
-    encode' (Leaf w c)     code points map = insert w c { huffman = code, wordPoints = points } map
+    encode' (Leaf w c)          code points map = insert w c { huffman = code, wordPoints = points } map
     encode' (Node left right c) code points map = let pts = index c : points
                                                       m1  = encode' left (Zero:code) pts map
-                                                      m2  = encode' right (One:code) pts m1
                                                   in
-                                                   m2
+                                                   m1 `par` encode' right (One:code) pts m1
   
 -- # Tests
     

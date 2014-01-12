@@ -1,10 +1,13 @@
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
 -- |Neural network based model of words similarity
 module Model where
 import Control.Monad(foldM)
 import Control.Concurrent(threadDelay)
 import System.Random(random,randomR,getStdGen,RandomGen,mkStdGen)
+import Data.Time.Clock(getCurrentTime,
+                       diffUTCTime)
 import qualified Data.HashMap.Strict as M
 import Matrix
 import Huffman
@@ -24,21 +27,22 @@ data Model = Model {
   -- eg, the number of features we want to track defaulting to 100
   --
   -- syn0 is the original name in C word2vec implementation
-  syn0 :: Matrix,
+  syn0 :: !Matrix,
 
   -- The hidden -> output connection matrix
   --
   -- syn1 is the original name in C word2vec implementation
-  syn1 :: Matrix,
+  syn1 :: !Matrix,
 
-  -- The vocabulary
+  -- The dictionary
   -- Each word is mapped to a Coding structure containing, among other things,
   -- the Huffman encoding of the word and references to inner nodes this word is connected to
-  vocabulary :: M.HashMap String Coding,
+  -- contains also number of words and maximal length of coding vectors
+  vocabulary :: !Dictionary,
 
   -- Size of training window
   window :: Int
-  }
+  } deriving (Show)
 
 defaultWindow :: Int
 defaultWindow = 10
@@ -47,7 +51,7 @@ defaultWindow = 10
 --
 coefficient :: (Monad m) => Model -> String -> m Matrix
 coefficient m w = do
-  let h = vocabulary m
+  let h = dictionary $ vocabulary m
   let Just (Coding index _ huff points) = M.lookup w h
   subMatrix [index] (syn0 m)
   
@@ -68,6 +72,7 @@ trainModel :: Int -> Dictionary -> [[String]] -> IO Model
 trainModel numTokens dict sentences = do
   theModel <- fromDictionary dict
   let alpha = 0.001
+  putStrLn $ "Start training model " ++ (show (numberOfWords theModel, modelSize theModel))
   foldM (trainSentence alpha) (0, theModel) sentences >>= return.snd
   
 
@@ -84,11 +89,14 @@ trainSentence :: Double
               -> (Int, Model)
               -> [String]
               -> IO (Int, Model)
-trainSentence alpha (count,m) sentence = do
+trainSentence alpha (count,!m) sentence = do
   let len = length sentence
-  putStrLn $ "Training " ++ (show len) ++ "/" ++ (show count) ++ " words"
+  start <- getCurrentTime
+  putStr $ "Training " ++ (show len) ++ "/" ++ (show count) ++ " words"
   g <- getStdGen
   m'<- foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
+  end <- getCurrentTime
+  putStrLn $ " in " ++ (show $ diffUTCTime end start)
   return (count + len,m')
 
       
@@ -96,7 +104,7 @@ trainWindow :: Double              -- alpha threshold
           -> Model               -- model to train
           -> (String,[String])   -- prefix, word, suffix to select window around word
           -> IO Model            -- updated model
-trainWindow alpha m (word,words) = 
+trainWindow alpha !m (word,words) = 
   foldM (trainWord alpha word) m (filter (/= word) words)
 
 trainWord :: Double    -- alpha threshold 
@@ -105,7 +113,9 @@ trainWord :: Double    -- alpha threshold
           -> String    -- word to learn
           -> IO Model
 trainWord alpha ref m word = do
-  let h = vocabulary m
+  start <- getCurrentTime
+--  putStr $ "Training on word " ++ word
+  let h = dictionary $ vocabulary m
   let Just (Coding index _ huff points) = M.lookup ref h
   let Just (Coding index' _ huff' points') = M.lookup word h
   -- this a vector of encoding length columns
@@ -131,16 +141,18 @@ trainWord alpha ref m word = do
   let hiddenToOutput =  (hiddenLayer `plus` prod)
   -- learn hidden -> output
   -- add the two matrices
-  syn1'<- writeMatrix (syn1 m) points hiddenToOutput
+  !syn1'<- writeMatrix (syn1 m) points hiddenToOutput
   -- learn input -> hidden
   let inputToHidden = (inputLayer `plus` (ga `matrixProduct` hiddenLayer))
-  syn0' <- writeMatrix (syn0 m) [index']  inputToHidden
+  !syn0' <- writeMatrix (syn0 m) [index']  inputToHidden
+  end <- getCurrentTime
+--  putStrLn $ " in " ++ (show $ diffUTCTime end start)
   return $ m { syn0 = syn0', syn1 = syn1'} 
 
 
 -- |Construct a model from a Dictionary
 fromDictionary :: Dictionary -> IO Model
-fromDictionary (Dict dict size len) = model size len >>= return . \ m -> m { vocabulary = dict }
+fromDictionary d@(Dict dict size len) = model size len >>= return . \ m -> m { vocabulary = d }
 
 -- |Initializes a model of given size
 --
@@ -153,7 +165,7 @@ model :: Int        -- dimensions
 model words dim = do
   s0 <- randomConnectionValues words dim
   s1 <- emptyMatrix (words, dim)
-  return $ Model words dim s0 s1 M.empty defaultWindow
+  return $ Model words dim s0 s1 emptyDictionary defaultWindow
 
 -- |Initialize the connection matrix with random values.
 --

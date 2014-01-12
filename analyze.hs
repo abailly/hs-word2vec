@@ -1,6 +1,7 @@
 module Main where
 
 import Prelude hiding (readFile)
+import System.IO(hSetBuffering,BufferMode(..),stdout)
 import System.IO.UTF8(readFile)
 import System.Directory(getDirectoryContents)
 import Data.List(isSuffixOf)
@@ -23,6 +24,7 @@ trainFiles txts = do
   putStrLn $ "Encoded " ++ (show $ dictionaryLength dict) ++ " words, dim="++  (show $ encodingLength dict) 
   contents <- mapM (\ f -> readFile f >>= return. tokenizeString) txts
   let tokens = length contents
+      
   putStrLn $ "Training " ++ (show tokens) ++ " files"
   trainModel tokens dict contents
 
@@ -33,9 +35,9 @@ analyzeDirectory dir = do
   
 main :: IO ()
 main = do
+  hSetBuffering stdout NoBuffering
   -- pdfs <- downloadPDFs
   -- txts <- (mapM convertToText pdfs >>= return.filter (/= []))
    -- m <- trainFiles txts
-  analyzeDirectory "."
-  -- need to save model...
-  putStrLn "done"
+  m <- analyzeDirectory "."
+  writeFile "model.txt" (show m)
