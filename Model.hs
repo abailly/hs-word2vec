@@ -64,26 +64,32 @@ similarity m u v = do
   return $ vecU `dotProduct` vecV
 
 -- | Train a model using a dictionary and a list of sentences
-trainModel :: Dictionary -> [[String]] -> IO Model
-trainModel dict sentences = do
+trainModel :: Int -> Dictionary -> [[String]] -> IO Model
+trainModel numTokens dict sentences = do
   theModel <- fromDictionary dict
   let alpha = 0.001
-  foldM (trainSentence alpha) theModel sentences
+  foldM (trainSentence alpha) (0, theModel) sentences >>= return.snd
+  
 
 -- |Train given model with a single sentence.
 --
 -- This function updates the model using skip-gram hierarchical softmax model on a single sentence
 -- For each word in the sentence:
 --
--- * Define a random training window around the word
--- * Iterate over all words in the window, updating the underlying neural network 
+-- * Define a random training window around the word whose default value is 10
+-- * Iterate over all words in the window, updating the underlying neural network
+--
+-- The updated model is returned along with the total number of words it has been trained on.
 trainSentence :: Double
-              -> Model
+              -> (Int, Model)
               -> [String]
-              -> IO Model
-trainSentence alpha m sentence = do
+              -> IO (Int, Model)
+trainSentence alpha (count,m) sentence = do
+  let len = length sentence
+  putStrLn $ "Training " ++ (show len) ++ "/" ++ (show count) ++ " words"
   g <- getStdGen
-  foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
+  m'<- foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
+  return (count + len,m')
 
       
 trainWindow :: Double              -- alpha threshold 

@@ -38,7 +38,8 @@ indexString dict = foldl indexWord dict . tokenizeString
 tokenizeFiles :: [String]        -- file paths
              -> IO Dictionary
 tokenizeFiles files = do
-  dictionary <- foldM (\ dict f -> readFile f >>= return.indexString dict) empty files
+  dictionary <- foldM (\ dict f -> putStrLn ("Tokenizing " ++ f) >> readFile f >>= return.indexString dict) empty files
+  putStrLn $ "Encoding dictionary: " ++ (show $ size dictionary)
   let encoding = huffmanEncode $ dictionary
   return $ Dict encoding (size encoding) (length $ huffman $ head $ elems encoding)
       
