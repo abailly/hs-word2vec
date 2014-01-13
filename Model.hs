@@ -19,6 +19,7 @@ data Model = Model {
   numberOfWords :: Int,
   
   -- Size of the model or number of dimensions each word is mapped to
+  -- also called number of features
   modelSize :: Int,
   
   -- The input -> hidden connection matrix
@@ -46,6 +47,9 @@ data Model = Model {
 
 defaultWindow :: Int
 defaultWindow = 10
+
+defaultFeatures :: Int
+defaultFeatures = 100
 
 -- | Raw coefficients of given word
 --
@@ -107,6 +111,9 @@ trainWindow :: Double              -- alpha threshold
 trainWindow alpha !m (word,words) = 
   foldM (trainWord alpha word) m (filter (/= word) words)
 
+-- | Train model on a single word, given a reference word
+--
+-- Uses skipgram training method to train model given two "close" words.
 trainWord :: Double    -- alpha threshold 
           -> String    -- reference word
           -> Model     -- model to train
@@ -118,27 +125,32 @@ trainWord alpha ref m word = do
   let h = dictionary $ vocabulary m
   let Just (Coding index _ huff points) = M.lookup ref h
   let Just (Coding index' _ huff' points') = M.lookup word h
+
   -- this a vector of encoding length columns
   inputLayer  <- subMatrix [index'] (syn0 m)
-  -- this is a square subMatrix of n rows plus zeros, each modelSize column
-  -- where n is the length of huffman encoding
-  -- we complete to 0 in order to ensure that downstream computations are consistent as the
-  -- original encoding yield fewer points for larger frequencies
-  hiddenLayer <- squaredMatrix points (syn1 m) 
+  
+  -- this is a sub matrix containing encoding length rows and feature size columns
+  hiddenLayer <- subMatrix points (syn1 m) 
+
   -- this is a vector of encoding length columns
-  let propagate = inputLayer `matrixProduct` (transpose hiddenLayer)
+  let !propagate = inputLayer `matrixProduct` (transpose hiddenLayer)
   let [one] = matrixFromList 1 (cols propagate) [1,1 .. ]
+
   -- this is a vector of encoding length columns
   let fa = 1.0 `divideScalar` (one `plus` matrixExp (one `minus` propagate))
+
   -- A matrix (actually a vector) of 0 and 1 built from the huffman encoding of the current
   -- word. The vector is completed with 0s to ensure it has a consistent number of columns
-  let huffMatrix = toMatrix (cols propagate) huff
+  let !huffMatrix = toMatrix (cols propagate) huff
+
   -- this is again a vector of encoding length columns representing the error gradients
   -- time learning rate alpha
-  let ga = (one `minus` huffMatrix `minus` fa) `scalarProduct` alpha
+  let !ga = (one `minus` huffMatrix `minus` fa) `scalarProduct` alpha
+
   -- this is a encoding length x modelSize matrix
-  let prod = ga `outerProduct` inputLayer
-  let hiddenToOutput =  (hiddenLayer `plus` prod)
+  let !prod = ga `outerProduct` inputLayer
+  let !hiddenToOutput =  (hiddenLayer `plus` prod)
+
   -- learn hidden -> output
   -- add the two matrices
   !syn1'<- writeMatrix (syn1 m) points hiddenToOutput
@@ -152,15 +164,15 @@ trainWord alpha ref m word = do
 
 -- |Construct a model from a Dictionary
 fromDictionary :: Dictionary -> IO Model
-fromDictionary d@(Dict dict size len) = model size len >>= return . \ m -> m { vocabulary = d }
+fromDictionary d@(Dict dict size len) = model size defaultFeatures >>= return . \ m -> m { vocabulary = d }
 
 -- |Initializes a model of given size
 --
 -- The output connections are initialized to 0 while the hidden connections are
 -- initialized to random values in the [-0.5,+0.5] interval, then divided by the number of
 -- columns.
-model :: Int        -- dimensions
-      -> Int        -- number of words
+model :: Int        -- number of words
+      -> Int        -- number of features (dimensions)
       -> IO Model
 model words dim = do
   s0 <- randomConnectionValues words dim

@@ -5,7 +5,6 @@ module Matrix(Matrix(..),
               printMatrix,
               updateMatrix,
               subMatrix,
-              squaredMatrix,
               matrixProduct, outerProduct,
               scalarProduct,
               dotProduct,
@@ -49,35 +48,6 @@ subMatrix :: (Monad m) => [Int]       -- a list of row indices to select
           -> m Matrix   -- sub-matrix from input
 subMatrix rows m = return $ Matrix (M.extractRows rows (rawData m)) (length rows) (cols m)
 
--- |Select some rows of a matrix and complete them to ensure the matrix is square.
---
--- This assumes the selection has less rows than columns
--- 
--- >>> (matrixFromList 5 3 (map fromIntegral [0 ..])) >>= squaredMatrix [0,2] >>= printMatrix >>= putStrLn
--- [0.0,1.0,2.0]
--- [6.0,7.0,8.0]  
--- [0.0,0.0,0.0]
---
--- >>> (matrixFromList 5 4 (map fromIntegral [0 ..])) >>= squaredMatrix [0,2] >>= printMatrix >>= putStrLn
--- [0.0,1.0,2.0,3.0]
--- [8.0,9.0,10.0,11.0]  
--- [0.0,0.0,0.0,0.0]
--- [0.0,0.0,0.0,0.0]
---
--- >>> (matrixFromList 5 3 (map fromIntegral [0 ..])) >>= squaredMatrix [0,2,4] >>= printMatrix >>= putStrLn
--- [0.0,1.0,2.0]
--- [6.0,7.0,8.0]  
--- [12.0,13.0,14.0]
-squaredMatrix :: (Monad m) => [Int]       -- a list of row indices to select
-          -> Matrix      -- input matrix
-          -> m Matrix   -- sub-matrix from input
-squaredMatrix rows m = let missing = cols m - length rows
-                           extracted = M.extractRows rows (rawData m)
-                           square = if missing > 0 then
-                                      (M.fromBlocks $ [[extracted]] ++ replicate missing [0])
-                                    else
-                                      extracted
-                       in return $ Matrix square (M.rows square) (cols m)
 
 -- |Product of two matrices
 matrixProduct :: Matrix -> Matrix -> Matrix
@@ -107,9 +77,12 @@ transpose m = Matrix (M.trans $ rawData m) (cols m) (rows m)
 -- |Outer product of two vectors
 --
 -- >>> matrix [[1,1,1,1]] >>= (\ m -> matrix [[1,1,1,1]] >>= return.outerProduct m) >>= printMatrix >>= putStrLn
--- [4.0]
+-- [1.0,1.0,1.0,1.0]
+-- [1.0,1.0,1.0,1.0]
+-- [1.0,1.0,1.0,1.0]
+-- [1.0,1.0,1.0,1.0]
 outerProduct :: Matrix -> Matrix -> Matrix
-outerProduct m n = m `matrixProduct` (transpose n)
+outerProduct m n = (transpose m) `matrixProduct` n
 
 -- | Inner product of two vectors
 --
