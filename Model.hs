@@ -3,17 +3,24 @@
 {-# LANGUAGE FlexibleInstances #-}
 -- |Neural network based model of words similarity
 module Model where
-import Control.Monad(foldM)
+import Control.Monad(foldM, liftM2,mapM_)
 import Control.Concurrent(threadDelay)
 import System.Random(random,randomR,getStdGen,RandomGen,mkStdGen)
 import Data.Time.Clock(getCurrentTime,
                        diffUTCTime)
+import System.IO.Unsafe
 import qualified Data.HashMap.Strict as M
-import Matrix
+import qualified Data.Array.IO as A
 import Huffman
 import Window
 import Words
 
+type Layer = A.IOUArray Int Double
+
+instance Show Layer where
+  -- TODO this is bad...refactor me
+  show l = show $ unsafePerformIO $ A.getElems l
+    
 data Model = Model {
   -- Number of words in the model
   numberOfWords :: Int,
@@ -28,12 +35,12 @@ data Model = Model {
   -- eg, the number of features we want to track defaulting to 100
   --
   -- syn0 is the original name in C word2vec implementation
-  syn0 :: !Matrix,
+  syn0 :: !Layer,
 
   -- The hidden -> output connection matrix
-  --
+  -- It has the same geometry as the input layer.
   -- syn1 is the original name in C word2vec implementation
-  syn1 :: !Matrix,
+  syn1 :: !Layer,
 
   -- The dictionary
   -- Each word is mapped to a Coding structure containing, among other things,
@@ -53,23 +60,42 @@ defaultFeatures = 100
 
 -- | Raw coefficients of given word
 --
-coefficient :: (Monad m) => Model -> String -> m Matrix
+-- Returns an array of model size length containing the raw coefficients for the given word
+-- in the given model.
+coefficient :: Model -> String -> IO Layer
 coefficient m w = do
   let h = dictionary $ vocabulary m
   let Just (Coding index _ huff points) = M.lookup w h
-  subMatrix [index] (syn0 m)
+  let layerSize = modelSize m
+  let offset = index * layerSize
+  let s0 = syn0 m
+  coeff <- A.newArray (0, layerSize -1) 0 :: IO Layer
+  mapM_ (\ c -> A.readArray s0 (c + offset) >>= A.writeArray coeff c) [0 .. layerSize - 1]
+  return coeff
+
+-- | Normalize given array to a vector of length 1.
+unitVector :: Layer -> IO Layer
+unitVector v = do
+  (lb,ub) <- A.getBounds v
+  s <- foldM (\ s c -> A.readArray v c >>= (\ x -> return (s + (x * x)))) 0 [lb .. ub]
+  let norm = sqrt s
+  A.mapArray (/ norm) v
+  
   
 -- | Compute similarity between two words
 --
 -- Uses the cosine similarity, eg. dot product between the two vectors. The vectors should be of
--- norm.
-similarity :: (Monad m) => Model -> String -> String -> m Double
+-- norm 1 and equal length.
+similarity :: Model -> String -> String -> IO Double
 similarity m u v = do
   u'<- coefficient m u
   v'<- coefficient m v
-  let vecU = unitVector u'
-  let vecV = unitVector v'
-  return $ vecU `dotProduct` vecV
+  vecU <- unitVector u'
+  vecV <- unitVector v'
+  (lb,ub) <- A.getBounds vecU
+  foldM ( \ s c -> A.readArray vecU c >>=
+                   (\ x -> A.readArray vecV c >>=
+                           (\ y -> return (s + x * y)))) 0 [lb .. ub]
 
 -- | Train a model using a dictionary and a list of sentences
 trainModel :: Int -> Dictionary -> [[String]] -> IO Model
@@ -104,7 +130,7 @@ trainSentence alpha (count,!m) sentence = do
   return (count + len,m')
 
       
-trainWindow :: Double              -- alpha threshold 
+trainWindow :: Double            -- alpha threshold 
           -> Model               -- model to train
           -> (String,[String])   -- prefix, word, suffix to select window around word
           -> IO Model            -- updated model
@@ -114,6 +140,7 @@ trainWindow alpha !m (word,words) =
 -- | Train model on a single word, given a reference word
 --
 -- Uses skipgram training method to train model given two "close" words.
+-- Code is a direct transposition of C code into Haskell using Mutable arrays.
 trainWord :: Double    -- alpha threshold 
           -> String    -- reference word
           -> Model     -- model to train
@@ -121,45 +148,46 @@ trainWord :: Double    -- alpha threshold
           -> IO Model
 trainWord alpha ref m word = do
   start <- getCurrentTime
---  putStr $ "Training on word " ++ word
   let h = dictionary $ vocabulary m
   let Just (Coding index _ huff points) = M.lookup ref h
   let Just (Coding index' _ huff' points') = M.lookup word h
+  let layerSize = modelSize m
+  let layerIndices = [0..layerSize -1]
 
-  -- this a vector of encoding length columns
-  inputLayer  <- subMatrix [index'] (syn0 m)
-  
-  -- this is a sub matrix containing encoding length rows and feature size columns
-  hiddenLayer <- subMatrix points (syn1 m) 
+  let s0 = syn0 m
+  let s1 = syn1 m
 
-  -- this is a vector of encoding length columns
-  let !propagate = inputLayer `matrixProduct` (transpose hiddenLayer)
-  let [one] = matrixFromList 1 (cols propagate) [1,1 .. ]
+  -- temporary arrays
+  neu1e <- A.newArray (0, layerSize - 1) 0 :: IO Layer
 
-  -- this is a vector of encoding length columns
-  let fa = 1.0 `divideScalar` (one `plus` matrixExp (one `minus` propagate))
+  -- offset in input layer for word to learn features
+  let l1 = index' * layerSize
 
-  -- A matrix (actually a vector) of 0 and 1 built from the huffman encoding of the current
-  -- word. The vector is completed with 0s to ensure it has a consistent number of columns
-  let !huffMatrix = toMatrix (cols propagate) huff
+  -- update a single point
+  let updatePoint (p,b) = do
+        -- offset for link to index p in hidden layer
+        let l2 = p * layerSize
+        -- dot product of two vectors
+        f <- foldM (\ f' c -> liftM2 (*) (A.readArray s0 (c + l1)) (A.readArray s1 (c + l2)) >>= \ v -> return (v + f')) 0 layerIndices
+        let exp_f = exp f
+        let g = (1 - asNum b - exp_f) * alpha
+        mapM_ (\ c -> A.readArray s1 (c + l2) >>=
+                      (\ h -> A.readArray neu1e c >>=
+                             (\ n -> A.writeArray neu1e c (n + g * h)))) layerIndices
+        mapM_ (\ c -> A.readArray s0 (c + l1) >>=
+                      (\ h -> A.readArray s1 (c + l2) >>=
+                             (\ n -> A.writeArray s1 (c + l2) (n + g * h)))) layerIndices
 
-  -- this is again a vector of encoding length columns representing the error gradients
-  -- time learning rate alpha
-  let !ga = (one `minus` huffMatrix `minus` fa) `scalarProduct` alpha
+  mapM_ updatePoint (zip points huff)
 
-  -- this is a encoding length x modelSize matrix
-  let !prod = ga `outerProduct` inputLayer
-  let !hiddenToOutput =  (hiddenLayer `plus` prod)
-
-  -- learn hidden -> output
-  -- add the two matrices
-  !syn1'<- writeMatrix (syn1 m) points hiddenToOutput
-  -- learn input -> hidden
-  let inputToHidden = (inputLayer `plus` (ga `matrixProduct` hiddenLayer))
-  !syn0' <- writeMatrix (syn0 m) [index']  inputToHidden
-  end <- getCurrentTime
---  putStrLn $ " in " ++ (show $ diffUTCTime end start)
-  return $ m { syn0 = syn0', syn1 = syn1'} 
+  mapM_ (\ c -> A.readArray s0 (c + l1) >>=
+                (\ h -> A.readArray neu1e c >>=
+                       (\ n ->  if isNaN (n + h) then
+                                  fail $ "computed NaN at (" ++ (show  index') ++"," ++ (show c) ++ ")"
+                                else
+                                  A.writeArray s0 (c + l1) (n + h)))) layerIndices
+  -- not very useful given we update arrays in place, but simplifies folding function over a list of words
+  return $ m
 
 
 -- |Construct a model from a Dictionary
@@ -176,7 +204,7 @@ model :: Int        -- number of words
       -> IO Model
 model words dim = do
   s0 <- randomConnectionValues words dim
-  s1 <- emptyMatrix (words, dim)
+  s1 <- A.newArray (0, words * dim -1) 0
   return $ Model words dim s0 s1 emptyDictionary defaultWindow
 
 -- |Initialize the connection matrix with random values.
@@ -187,10 +215,11 @@ model words dim = do
 --
 randomConnectionValues :: Int       -- number of rows
                        -> Int       -- number of cols per row
-                       -> IO Matrix -- initialized matrix 
+                       -> IO Layer -- initialized matrix 
 randomConnectionValues rows cols = do
   g <- getStdGen
-  matrixFromList rows cols (map (/fromIntegral cols) (randoms g))
+  A.newListArray (0,rows * cols -1) (map (/fromIntegral cols) (randoms g))
+  
 
 randoms :: RandomGen g => g -> [ Double ]
 randoms g = let (i,g') = random g

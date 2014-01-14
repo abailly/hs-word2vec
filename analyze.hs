@@ -4,6 +4,8 @@ import Prelude hiding (readFile)
 import System.IO(hSetBuffering,BufferMode(..),stdout)
 import System.IO.UTF8(readFile)
 import System.Directory(getDirectoryContents)
+import System.FilePath((</>))
+import System.Environment(getArgs)
 import Data.List(isSuffixOf)
 import Control.Monad(foldM)
 
@@ -35,9 +37,14 @@ analyzeDirectory dir = do
   
 main :: IO ()
 main = do
+  args <- getArgs
+  let dir = case args of
+        (x:xs) -> x
+        []     -> "."
+  putStrLn $ "analyzing directory "++ dir 
   hSetBuffering stdout NoBuffering
   -- pdfs <- downloadPDFs
   -- txts <- (mapM convertToText pdfs >>= return.filter (/= []))
    -- m <- trainFiles txts
-  m <- analyzeDirectory "."
-  writeFile "model.txt" (show m)
+  m <- analyzeDirectory dir
+  writeFile (dir </> "model.txt") (show m)

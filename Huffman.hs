@@ -5,7 +5,7 @@ module Huffman(Code,
                Bin(..),
                Coding(..),
                huffmanEncode,
-               toMatrix) where
+               asNum) where
 import Data.HashMap.Strict(empty,
                          insert,
                          HashMap,
@@ -14,7 +14,6 @@ import Data.HashMap.Strict(empty,
 import qualified Data.Heap as H
 import Data.Maybe(fromJust)
 import Control.Parallel(par)
-import Matrix
 
 data Bin = Zero | One deriving (Eq, Ord, Show, Read)
 
@@ -23,11 +22,6 @@ type Code = [Bin]
 asNum :: (Num a ) => Bin -> a
 asNum Zero = 0
 asNum One  = 1
-
--- |Transform coding into a vector of 0 and 1
-toMatrix :: Int -> Code -> Matrix
-toMatrix len code = let [m] = matrixFromList 1 len ((map asNum code) ++ [0,0..])
-                    in m
 
 instance Enum Code where
   toEnum n = case n `mod` 2 of
