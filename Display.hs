@@ -27,7 +27,7 @@ import Control.Lens
 -- | Compute 2D mapping of words from a model.
 --
 -- We first transform the syn0 values of model into a Matrix of doubles
--- then compute 2 first PCA from this matrix. The 2PCA as zipped along with each corresponding
+-- then compute 2 first PCA from this matrix. The first 2 PCAs are zipped along with each corresponding
 -- word from the vocabulary to produce a vector of tuples with coordinates
 pcaAnalysis :: Model -> IO [(String, Double, Double)]
 pcaAnalysis m = do
@@ -41,14 +41,17 @@ pcaAnalysis m = do
 drawMostFrequentWords :: Int                       -- ^Limit number of words to display
                       -> Model                     -- ^The model to draw frequencies from
                       -> [(String,Double,Double)]  -- ^Result of PCA analysis from model
-                      -> Renderable ()
+                      -> Renderable ()             -- ^The output from Chart
 drawMostFrequentWords limit model vectors = let
   points = plot_points_style .~ filledCircles 2 (opaque red)
-           $ plot_points_values .~ [(x,y) |  (_,x,y) <- take 100 vectors]
+           $ plot_points_values .~ [(x,y) |  (_,x,y) <- take limit vectors]
+           $ def
+
+  labels = plot_annotation_values .~ [(x + 0.001,y + 0.001,l) |  (l,x,y) <- take limit vectors]
            $ def
 
   layout = layout_title .~ "Words Vector Space"
-           $ layout_plots .~ [toPlot points]
+           $ layout_plots .~ [toPlot points, toPlot labels]
            $ def
   in
    toRenderable layout
