@@ -45,9 +45,7 @@ main = do
         []    -> "."
   putStrLn $ "analyzing directory "++ dir 
   hSetBuffering stdout NoBuffering
-  -- pdfs <- downloadPDFs
-  -- txts <- (mapM convertToText pdfs >>= return.filter (/= []))
-   -- m <- trainFiles txts
+
   m <- analyzeDirectory dir
   p <- pcaAnalysis m
   let chart = drawMostFrequentWords 100 m p

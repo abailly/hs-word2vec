@@ -39,6 +39,20 @@ Executable word2vec
   main-is:            word2vec.hs
   ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision
 
+Executable crawl
+  Build-Depends: base,
+                 process >= 1.1,
+                 unix >= 2.6,
+                 filepath >= 1.3,
+                 bytestring >= 0.10,
+                 tagsoup >= 0.13,
+                 http-conduit >= 2.0,
+                 network >= 2.4,
+                 HTTP >= 4000.2
+  hs-source-dirs:     .
+  main-is:            arxiv.hs
+  ghc-options:        -Wall -threaded -rtsopts -O3
+
 -- Looks broken... Tests execution works but it hangs.
 Test-Suite word2vec-test
     type:          exitcode-stdio-1.0

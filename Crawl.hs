@@ -61,7 +61,7 @@ paperId link = case link =~ "paper.jsp.r=([^&]+)&.*" :: (String,String,String,[S
   _            -> ""  
 
 -- |Get first page of query.
-firstPage = body "http://tinyurl.com/mczfmz9"
+firstPage = body "http://search.arxiv.org:8081/?query=%22big+data%22+OR+cloud+OR+%22machine+learning%22+OR+%22artificial+intelligence%22+OR+%22distributed+computing%22&qid=13871620873749a_nCnN_-288443966&startat=40"
 
 -- |Follow all `Prev` links till beginning of search and collect paper links.
 previousPages :: ([ String ], (Maybe String,Maybe String)) -> IO [ String ]
