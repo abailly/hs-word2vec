@@ -30,6 +30,12 @@ pcaAnalysis m = do
   let indexedWords        = orderedWords (vocabulary m)
   return $ zip3 indexedWords (V.toList pc1)  (V.toList pc2) 
 
+-- -- |Draw  a chart of the X most frequent words in a model using PCA dimensions.
+-- drawMostFrequentWords :: Int                       -- ^Limit number of words to display
+--                       -> Model                     -- ^The model to draw frequencies from
+--                       -> [(String,Double,Double)]  -- ^Result of PCA analysis from model
+--                       -> 
+-- drawMostFrequentWords limit model =
 
 toMatrix :: Int -> Int -> Layer -> IO (M.Matrix Double)
 toMatrix r c l = A.getElems l >>= return . M.trans . (r M.>< c)

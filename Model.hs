@@ -3,9 +3,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 -- |Neural network based model of words similarity
 module Model where
-import Control.Monad(foldM, liftM2,mapM_)
-import Control.Concurrent(threadDelay)
-import System.Random(random,randomR,getStdGen,RandomGen,mkStdGen)
+import Control.Monad(foldM, liftM2)
+import System.Random(random,getStdGen,RandomGen)
 import Data.Time.Clock(getCurrentTime,
                        diffUTCTime)
 import System.IO.Unsafe
@@ -65,9 +64,9 @@ defaultFeatures = 100
 coefficient :: Model -> String -> IO Layer
 coefficient m w = do
   let h = dictionary $ vocabulary m
-  let Just (Coding index _ huff points) = M.lookup w h
+  let Just (Coding wordIndex _ _ _) = M.lookup w h
   let layerSize = modelSize m
-  let offset = index * layerSize
+  let offset = wordIndex * layerSize
   let s0 = syn0 m
   coeff <- A.newArray (0, layerSize -1) 0 :: IO Layer
   mapM_ (\ c -> A.readArray s0 (c + offset) >>= A.writeArray coeff c) [0 .. layerSize - 1]
@@ -99,7 +98,7 @@ similarity m u v = do
 
 -- | Train a model using a dictionary and a list of sentences
 trainModel :: Int -> Dictionary -> [[String]] -> IO Model
-trainModel numTokens dict sentences = do
+trainModel _ dict sentences = do
   theModel <- fromDictionary dict
   let alpha = 0.001
   putStrLn $ "Start training model " ++ (show (numberOfWords theModel, modelSize theModel))
@@ -134,8 +133,8 @@ trainWindow :: Double            -- alpha threshold
           -> Model               -- model to train
           -> (String,[String])   -- prefix, word, suffix to select window around word
           -> IO Model            -- updated model
-trainWindow alpha !m (word,words) = 
-  foldM (trainWord alpha word) m (filter (/= word) words)
+trainWindow alpha !m (w, ws) = 
+  foldM (trainWord alpha w) m (filter (/= w) ws)
 
 -- | Train model on a single word, given a reference word
 --
@@ -147,10 +146,9 @@ trainWord :: Double    -- alpha threshold
           -> String    -- word to learn
           -> IO Model
 trainWord alpha ref m word = do
-  start <- getCurrentTime
   let h = dictionary $ vocabulary m
-  let Just (Coding index _ huff points) = M.lookup ref h
-  let Just (Coding index' _ huff' points') = M.lookup word h
+  let Just (Coding _ _ huff points) = M.lookup ref h
+  let Just (Coding index' _ _ _) = M.lookup word h
   let layerSize = modelSize m
   let layerIndices = [0..layerSize -1]
 

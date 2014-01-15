@@ -13,7 +13,6 @@ import Data.HashMap.Strict(empty,
                          fromList)
 import qualified Data.Heap as H
 import Data.Maybe(fromJust)
-import Control.Parallel(par)
 
 data Bin = Zero | One deriving (Eq, Ord, Show, Read)
 
@@ -113,7 +112,7 @@ encode h = encode' (fst $ fromJust $ H.view h) [] [] empty
     encode' (Node left right c) code points map = let pts = index c : points
                                                       m1  = encode' left (Zero:code) pts map
                                                   in
-                                                   m1 `par` encode' right (One:code) pts m1
+                                                   encode' right (One:code) pts m1
   
 -- # Tests
     
