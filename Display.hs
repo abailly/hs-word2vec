@@ -17,6 +17,13 @@ import qualified Numeric.LinearAlgebra.NIPALS as P
 import Words
 import Model
 
+
+import Graphics.Rendering.Chart
+import Data.Default.Class
+import Data.Colour
+import Data.Colour.Names
+import Control.Lens
+
 -- | Compute 2D mapping of words from a model.
 --
 -- We first transform the syn0 values of model into a Matrix of doubles
@@ -30,12 +37,23 @@ pcaAnalysis m = do
   let indexedWords        = orderedWords (vocabulary m)
   return $ zip3 indexedWords (V.toList pc1)  (V.toList pc2) 
 
--- -- |Draw  a chart of the X most frequent words in a model using PCA dimensions.
--- drawMostFrequentWords :: Int                       -- ^Limit number of words to display
---                       -> Model                     -- ^The model to draw frequencies from
---                       -> [(String,Double,Double)]  -- ^Result of PCA analysis from model
---                       -> 
--- drawMostFrequentWords limit model =
+-- |Draw  a chart of the X most frequent words in a model using PCA dimensions.
+drawMostFrequentWords :: Int                       -- ^Limit number of words to display
+                      -> Model                     -- ^The model to draw frequencies from
+                      -> [(String,Double,Double)]  -- ^Result of PCA analysis from model
+                      -> Renderable ()
+drawMostFrequentWords limit model vectors = let
+  points = plot_points_style .~ filledCircles 2 (opaque red)
+           $ plot_points_values .~ [(x,y) |  (_,x,y) <- take 100 vectors]
+           $ def
+
+  layout = layout_title .~ "Words Vector Space"
+           $ layout_plots .~ [toPlot points]
+           $ def
+  in
+   toRenderable layout
+
+
 
 toMatrix :: Int -> Int -> Layer -> IO (M.Matrix Double)
 toMatrix r c l = A.getElems l >>= return . M.trans . (r M.>< c)
