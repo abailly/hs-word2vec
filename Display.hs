@@ -5,7 +5,7 @@
 -- least this is what I understood...
 -- We extract the two main principal components from the feature matrix of a model and generate
 -- a 2d picture of the most frequent words from the dictionary.
-module Display where
+module Display(drawSelectedWords, pcaAnalysis) where
 
 import qualified Data.Array.IO as A
 -- hmatrix package
@@ -38,16 +38,15 @@ pcaAnalysis m = do
   return $ zip3 indexedWords (V.toList pc1)  (V.toList pc2) 
 
 -- |Draw  a chart of the X most frequent words in a model using PCA dimensions.
-drawMostFrequentWords :: Int                       -- ^Limit number of words to display
-                      -> Model                     -- ^The model to draw frequencies from
-                      -> [(String,Double,Double)]  -- ^Result of PCA analysis from model
-                      -> Renderable ()             -- ^The output from Chart
-drawMostFrequentWords limit model vectors = let
+drawSelectedWords :: [(String,Double,Double)]  -- ^Result of PCA analysis from model
+                  -> [String]                  -- ^Selected words to plot
+                  -> Renderable ()             -- ^The output from Chart
+drawSelectedWords vectors selectedWords = let
   points = plot_points_style .~ filledCircles 2 (opaque red)
-           $ plot_points_values .~ [(x,y) |  (_,x,y) <- take limit vectors]
+           $ plot_points_values .~ [(x,y) |  (l,x,y) <- vectors, l `elem` selectedWords]
            $ def
 
-  labels = plot_annotation_values .~ [(x + 0.001,y + 0.001,l) |  (l,x,y) <- take limit vectors]
+  labels = plot_annotation_values .~ [(x + 0.001,y + 0.001,l) |  (l,x,y) <- vectors, l `elem` selectedWords]
            $ def
 
   layout = layout_title .~ "Words Vector Space"

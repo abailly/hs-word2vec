@@ -6,6 +6,8 @@ import System.FilePath((</>))
 import System.Environment(getArgs)
 import Data.List(isSuffixOf)
 import Control.Monad(when)
+import System.Console.GetOpt
+
 import Graphics.Rendering.Chart.Backend.Diagrams
 
 
@@ -36,19 +38,44 @@ analyzeDirectory :: String -> IO Model
 analyzeDirectory dir = do
   txts <- getDirectoryContents dir >>= return.filter (isSuffixOf ".txt")
   trainFiles txts
-  
+
+data Config = CorpusDir String
+            | Verbose
+            | Version
+
+
+options :: [OptDescr Config]
+options =
+     [ Option ['v']     ["verbose"]    (NoArg Verbose)          "chatty output on stderr"
+     , Option ['V','?'] ["version"]    (NoArg Version)          "show version number"
+     , Option ['d']     ["corpus-dir"] (ReqArg CorpusDir "DIR") "corpus directory FILE"
+
+     ]
+
+word2vecOpts :: [String] -> IO ([Config], [String])
+word2vecOpts argv = 
+       case getOpt Permute options argv of
+          (o,n,[]  ) -> return (o,n)
+          (_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
+      where header = "Usage: word2vec [OPTION...] [words...]"
+
+
+corpusDir :: [Config] -> String
+corpusDir []              = "."
+corpusDir (CorpusDir d:_) = d
+corpusDir (_:configs)     = corpusDir configs
+
 main :: IO ()
 main = do
   args <- getArgs
-  let dir = case args of
-        (x:_) -> x
-        []    -> "."
+  (configs,selectedWords) <- word2vecOpts args
+  let dir = corpusDir configs
   putStrLn $ "analyzing directory "++ dir 
   hSetBuffering stdout NoBuffering
 
   m <- analyzeDirectory dir
   p <- pcaAnalysis m
-  let chart = drawMostFrequentWords 100 m p
+  let chart = drawSelectedWords p selectedWords
   when (length p /= (numberOfWords m)) 
     (fail $ "PCA should have same number of words than model: "++ (show $ length p) ++ "vs. " ++ (show $ numberOfWords m))
 
@@ -62,7 +89,7 @@ main = do
   putStrLn $ "Writing PCA to file " ++ pcaFile
   writeFile pcaFile (show p)
 
-  putStrLn $ "Writing vector space diagram " ++ diagramFile
+  putStrLn $ "Writing vector space diagram " ++ diagramFile ++ "for words " ++ (show selectedWords)
   renderableToSVGFile chart 1000 1000 diagramFile
 
   putStrLn "done"

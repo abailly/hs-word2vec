@@ -9,6 +9,7 @@ import Data.Time.Clock(getCurrentTime,
                        diffUTCTime)
 import System.IO.Unsafe
 import qualified Data.HashMap.Strict as M
+
 import qualified Data.Array.IO as A
 import Huffman
 import Window

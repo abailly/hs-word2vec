@@ -54,7 +54,7 @@ Executable crawl
   ghc-options:        -Wall -threaded -rtsopts -O3
 
 -- Looks broken... Tests execution works but it hangs.
-Test-Suite word2vec-test
-    type:          exitcode-stdio-1.0
-    main-is:       word2vec-test.hs
-    build-depends: base, doctest
+-- Test-Suite word2vec-test
+--     type:          exitcode-stdio-1.0
+--     main-is:       word2vec-test.hs
+--     build-depends: base, doctest
