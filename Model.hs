@@ -168,25 +168,35 @@ trainWord alpha ref m word = do
         -- dot product of two vectors
         f <- foldM (\ f' c -> liftM2 (*) (A.readArray s0 (c + l1)) (A.readArray s1 (c + l2)) >>= \ v -> return (v + f')) 0 layerIndices
         let exp_f = exp f
+        -- compute gradient
         let g = (1 - asNum b - exp_f) * alpha
-        mapM_ (\ c -> A.readArray s1 (c + l2) >>=
-                      (\ h -> A.readArray neu1e c >>=
-                             (\ n -> A.writeArray neu1e c (n + g * h)))) layerIndices
-        mapM_ (\ c -> A.readArray s0 (c + l1) >>=
-                      (\ h -> A.readArray s1 (c + l2) >>=
-                             (\ n -> A.writeArray s1 (c + l2) (n + g * h)))) layerIndices
+        -- apply gradient on input layer
+        for layerSize s1 (+l2) neu1e id neu1e id (\ x y  -> y + g * x)
+        -- apply gradien on hidden layer
+        for layerSize s0 (+l1) s1 (+l2) s1 (+l2) (\ x y  -> y + g * x)
 
   mapM_ updatePoint (zip points huff)
 
-  mapM_ (\ c -> A.readArray s0 (c + l1) >>=
-                (\ h -> A.readArray neu1e c >>=
-                       (\ n ->  if isNaN (n + h) then
-                                  fail $ "computed NaN at (" ++ (show  index') ++"," ++ (show c) ++ ")"
-                                else
-                                  A.writeArray s0 (c + l1) (n + h)))) layerIndices
+  -- report computed gradient to input layer
+  for layerSize s0 (+l1) neu1e id s0 (+l1) (+)
+  
   -- not very useful given we update arrays in place, but simplifies folding function over a list of words
   return $ m
 
+for :: Int          -- ^Size of array
+    -> Layer        -- ^Left argument
+    -> (Int -> Int)  -- ^First array offset
+    -> Layer        -- ^Right Argument
+    -> (Int -> Int)  -- ^Second array offset
+    -> Layer        -- ^Output Array
+    -> (Int -> Int)  -- ^Output offset
+    -> (Double -> Double -> Double)  -- ^Computed function. The arguments are drawn from first and second array 
+    -> IO ()
+for size a offa b offb r offr f =
+  mapM_ (\ c -> A.readArray a (offa c) >>=
+        (\ h -> A.readArray b (offb c) >>=
+        (\ n -> A.writeArray r (offr c) (f h n))))
+        [0 .. size - 1]
 
 -- |Construct a model from a Dictionary
 fromDictionary :: Dictionary -> IO Model
