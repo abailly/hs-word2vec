@@ -9,9 +9,8 @@ import Network.HTTP(     rspBody,
                          mkRequest,
                          RequestMethod(..),
                          simpleHTTP)
-import Network.URI(parseURI)
+import Network.URI(parseURI,URI)
 import Data.Maybe(fromJust)
-import Network.HTTP.Conduit(simpleHttp)
 import Text.HTML.TagSoup(fromAttrib, 
                          isTagOpenName,
                          parseTags,
@@ -19,20 +18,15 @@ import Text.HTML.TagSoup(fromAttrib,
 import Data.List(isPrefixOf,
                  isSuffixOf)
 import Control.Arrow((&&&))
-import Control.Monad(replicateM,
-                     when)
-import Data.Tuple(swap)
+import Control.Monad(when)
 import Text.Regex.TDFA((=~))
 import qualified Data.ByteString.Lazy as L
-import Control.Concurrent.MVar(newEmptyMVar,
-                               takeMVar,
-                               putMVar)
-import Control.Concurrent(forkIO,
-                          killThread)
 import System.FilePath(splitExtension)
 import System.Posix.Files(fileExist)
 import System.Process(system)
 import System.Exit(ExitCode(..))
+
+import Concurrent
 
 -- |Filter prev/next links.
 prevNext :: [ Tag String ] -> (Maybe String, Maybe String)
@@ -41,7 +35,7 @@ prevNext = locatePrevNext (Nothing, Nothing)
     locatePrevNext res []  = res
     locatePrevNext (p,n) (tag@(TagOpen "a" _): TagText t: rest) | isSuffixOf "Prev" t = locatePrevNext (Just $ fromAttrib "href" tag, n) rest 
                                                                 | isPrefixOf "Next" t = locatePrevNext (p, Just $ fromAttrib "href" tag) rest 
-    locatePrevNext res (t:ts) = locatePrevNext res ts
+    locatePrevNext res (_:ts) = locatePrevNext res ts
   
 -- |Filter all href links in a page.
 papers :: [ Tag String ] -> [ String ]
@@ -57,10 +51,11 @@ collectPage = papers &&& prevNext
 -- "cs/9605101"
 paperId :: String -> String
 paperId link = case link =~ "paper.jsp.r=([^&]+)&.*" :: (String,String,String,[String]) of
-  (_,_,_,x:xs) -> x
-  _            -> ""  
+  (_,_,_,x:_) -> x
+  _           -> ""  
 
 -- |Get first page of query.
+firstPage :: IO String
 firstPage = body "http://search.arxiv.org:8081/?query=%22big+data%22+OR+cloud+OR+%22machine+learning%22+OR+%22artificial+intelligence%22+OR+%22distributed+computing%22&qid=13871620873749a_nCnN_-288443966&startat=40"
 
 -- |Follow all `Prev` links till beginning of search and collect paper links.
@@ -81,6 +76,7 @@ nextPages (uris, (_, Just p)) = do
   nextPages (uris ++ uris', np)
 
 -- | Get body of request, ignoring all cookies but following redirections.
+body :: String -> IO String
 body uri = browse $ setCookies [] >> (request (getRequest uri)) >>= (return.rspBody.snd)
 
 
@@ -94,54 +90,37 @@ allPaperIds = do
   return $ map paperId $ prev ++ next
 
 -- |Construct an URI to a paper's PDF from an id
-pdfURI id = fromJust $ parseURI $ "http://arxiv.org/pdf/" ++ id ++ "v1.pdf"
+pdfURI :: String -> URI
+pdfURI docId = fromJust $ parseURI $ "http://arxiv.org/pdf/" ++ docId ++ "v1.pdf"
 
 -- |Download single PDF
 --
 -- throw an error if fail to download, returns filname otherwise.
-downloadPDF id =  do
-  resp <- simpleHTTP (mkRequest GET $ pdfURI id)
-  let body = rspBody $ (\ (Right r) -> r) resp
-  let f = filename id
+downloadPDF :: String     -- ^Id of document to download
+            -> IO String  -- ^File where document has been downloaded to
+downloadPDF docId =  do
+  resp <- simpleHTTP (mkRequest GET $ pdfURI docId)
+  let b = rspBody $ (\ (Right r) -> r) resp
+  let f = filename docId
   e <- fileExist f
-  when (not e) $ L.writeFile f body
+  when (not e) $ L.writeFile f b
   return f
   where
-    filename     id  = map replaceChars id ++ ".pdf"
+    filename     did = map replaceChars did ++ ".pdf"
     replaceChars '/' = '_'
-    replaceChars c= c
+    replaceChars c   = c
 
--- |Run a thread pool for executing concurrent computations
-runInThreadPool :: Int          -- number of threads to run concurrently
-                   -> [ String ]     -- list of ids to download
-                   -> IO [ String ]
-runInThreadPool numThreads ids = do
-  inChan <- newEmptyMVar
-  outChan <- newEmptyMVar
-  tids <- replicateM numThreads (forkIO $ compute inChan outChan)
-  forkIO $ mapM_ (putMVar inChan) ids
-  files <- mapM (const $ takeMVar outChan) ids
-  mapM_ killThread tids
-  return files
-    where
-      compute inChan outChan = do
-        id <- takeMVar inChan
-        f <- downloadPDF id
-        putMVar outChan f
-        compute inChan outChan
-        
-          
 -- |Dowload all PDF of papers
 downloadPDFs :: IO [ String ] 
 downloadPDFs = do
   ids <- allPaperIds
-  runInThreadPool 10 ids
+  runInThreadPool 10 ids downloadPDF
 
 -- | Convert a PDF file to text.
 --
 -- This assumes `pdftotext` is available in the PATH.
 convertToText :: String        -- file path
-                 -> IO String  -- Converted file
+              -> IO String  -- Converted file
 convertToText pdf = do
   let txt = fst (splitExtension pdf) ++ ".txt"
   exit <- system $ "pdftotext " ++ pdf
