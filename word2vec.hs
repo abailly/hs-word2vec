@@ -16,7 +16,7 @@ import Words
 import Display
 
 pca :: String -> IO  [(String, Double, Double)]
-pca file = analyze file >>= pcaAnalysis
+pca file = analyze file >>= return . pcaAnalysis
   
 analyze :: String -> IO Model
 analyze file = do
@@ -74,7 +74,7 @@ main = do
   hSetBuffering stdout NoBuffering
 
   m <- analyzeDirectory dir
-  p <- pcaAnalysis m
+  let p = pcaAnalysis m
   let chart = drawSelectedWords p selectedWords
   when (length p /= (numberOfWords m)) 
     (fail $ "PCA should have same number of words than model: "++ (show $ length p) ++ "vs. " ++ (show $ numberOfWords m))

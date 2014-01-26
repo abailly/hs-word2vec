@@ -11,16 +11,25 @@ import System.IO.Unsafe
 import qualified Data.HashMap.Strict as M
 
 import qualified Data.Array.IO as A
+
+import Data.Array.Repa(Z(..),
+                       computeP,
+                       sumP,
+                       slice,
+                       foldP,
+                       All(..),
+                       (:.)(..),
+                       Any(..),
+                       (*^),(+^),
+                       ix2, ix1, Array, (!), U, DIM1, DIM2, fromListUnboxed)
+
+import qualified Data.Array.Repa as R
 import Huffman
 import Window
 import Words
 
-type Layer = A.IOUArray Int Double
+type Layer = Array U DIM2 Double
 
-instance Show Layer where
-  -- TODO this is bad...refactor me
-  show l = show $ unsafePerformIO $ A.getElems l
-    
 data Model = Model {
   -- Number of words in the model
   numberOfWords :: Int,
@@ -58,28 +67,27 @@ defaultWindow = 10
 defaultFeatures :: Int
 defaultFeatures = 100
 
+type Vector = (Array U DIM1 Double)
+
 -- | Raw coefficients of given word
 --
 -- Returns an array of model size length containing the raw coefficients for the given word
 -- in the given model.
-coefficient :: Model -> String -> IO Layer
+coefficient :: Model -> String -> IO Vector
 coefficient m w = do
   let h = dictionary $ vocabulary m
   let Just (Coding wordIndex _ _ _) = M.lookup w h
   let layerSize = modelSize m
   let offset = wordIndex * layerSize
   let s0 = syn0 m
-  coeff <- A.newArray (0, layerSize -1) 0 :: IO Layer
-  mapM_ (\ c -> A.readArray s0 (c + offset) >>= A.writeArray coeff c) [0 .. layerSize - 1]
-  return coeff
+  computeP $ slice s0 (Z :. offset :. All)
 
 -- | Normalize given array to a vector of length 1.
-unitVector :: Layer -> IO Layer
+unitVector :: Vector -> IO Vector
 unitVector v = do
-  (lb,ub) <- A.getBounds v
-  s <- foldM (\ s c -> A.readArray v c >>= (\ x -> return (s + (x * x)))) 0 [lb .. ub]
-  let norm = sqrt s
-  A.mapArray (/ norm) v
+  s <- foldP (\ s x -> s + (x * x)) 0 v
+  let norm = sqrt (s ! Z)
+  computeP $ R.map (/ norm) v
   
   
 -- | Compute similarity between two words
@@ -92,10 +100,7 @@ similarity m u v = do
   v'<- coefficient m v
   vecU <- unitVector u'
   vecV <- unitVector v'
-  (lb,ub) <- A.getBounds vecU
-  foldM ( \ s c -> A.readArray vecU c >>=
-                   (\ x -> A.readArray vecV c >>=
-                           (\ y -> return (s + x * y)))) 0 [lb .. ub]
+  sumP (vecU *^ vecV) >>= return.(!Z)
 
 -- | Train a model using a dictionary and a list of sentences
 trainModel :: Int -> Dictionary -> [[String]] -> IO Model
@@ -137,6 +142,13 @@ trainWindow :: Double            -- alpha threshold
 trainWindow alpha !m (w, ws) = 
   foldM (trainWord alpha w) m (filter (/= w) ws)
 
+-- |Update a single row of a matrix with a vector at given index.
+updateLayer :: Layer -> Vector -> Int -> IO Layer
+updateLayer l v x = computeP $
+                    R.traverse2 l v
+                      (\ ij k -> ij)
+                      (\ m' v' coord@(Z :. r :. c) -> if r == x then v' (Z :. c) else m' coord) 
+
 -- | Train model on a single word, given a reference word
 --
 -- Uses skipgram training method to train model given two "close" words.
@@ -151,53 +163,41 @@ trainWord alpha ref m word = do
   let Just (Coding _ _ huff points) = M.lookup ref h
   let Just (Coding index' _ _ _) = M.lookup word h
   let layerSize = modelSize m
+  let vocabSize = numberOfWords m
   let layerIndices = [0..layerSize -1]
 
   let s0 = syn0 m
-  let s1 = syn1 m
 
-  -- temporary arrays
-  neu1e <- A.newArray (0, layerSize - 1) 0 :: IO Layer
-
-  -- offset in input layer for word to learn features
-  let l1 = index' * layerSize
+  let neu1eInitial = fromListUnboxed (ix1 layerSize) (take layerSize [0..])
+      
+  let l0 = slice s0 (Z :. index' :. All)
 
   -- update a single point
-  let updatePoint (p,b) = do
-        -- offset for link to index p in hidden layer
-        let l2 = p * layerSize
+      
+  let updatePoint :: (Array U DIM1 Double, Array U DIM2 Double) ->
+                     (Int, Bin) ->
+                     IO (Array U DIM1 Double, Array U DIM2 Double)
+      updatePoint (neu1e,s1) (p,b) = do
         -- dot product of two vectors
-        f <- foldM (\ f' c -> liftM2 (*) (A.readArray s0 (c + l1)) (A.readArray s1 (c + l2)) >>= \ v -> return (v + f')) 0 layerIndices
-        let exp_f = exp f
+        let l1 = slice s1 (Z :. p :. All)
+        f <- sumP (l0 *^ l1)
+        let exp_f = exp (f ! Z)
         -- compute gradient
         let g = (1 - asNum b - exp_f) * alpha
         -- apply gradient on input layer
-        for layerSize s1 (+l2) neu1e id neu1e id (\ x y  -> y + g * x)
-        -- apply gradien on hidden layer
-        for layerSize s0 (+l1) s1 (+l2) s1 (+l2) (\ x y  -> y + g * x)
+        neu1e' <- computeP $ (R.map (*g) l1) +^ neu1e
+        -- apply gradient on hidden layer
+        l1' <- computeP $ (R.map (*g) l0) +^ l1
+        s1' <- updateLayer s1 l1' p 
+        return (neu1e',s1') 
 
-  mapM_ updatePoint (zip points huff)
+      
+  (neu1e, s1')  <- foldM updatePoint (neu1eInitial, syn1 m) (zip points huff)
 
   -- report computed gradient to input layer
-  for layerSize s0 (+l1) neu1e id s0 (+l1) (+)
+  s0' <- updateLayer s0 neu1e index' 
   
-  -- not very useful given we update arrays in place, but simplifies folding function over a list of words
-  return $ m
-
-for :: Int          -- ^Size of array
-    -> Layer        -- ^Left argument
-    -> (Int -> Int)  -- ^First array offset
-    -> Layer        -- ^Right Argument
-    -> (Int -> Int)  -- ^Second array offset
-    -> Layer        -- ^Output Array
-    -> (Int -> Int)  -- ^Output offset
-    -> (Double -> Double -> Double)  -- ^Computed function. The arguments are drawn from first and second array 
-    -> IO ()
-for size a offa b offb r offr f =
-  mapM_ (\ c -> A.readArray a (offa c) >>=
-        (\ h -> A.readArray b (offb c) >>=
-        (\ n -> A.writeArray r (offr c) (f h n))))
-        [0 .. size - 1]
+  return $ m { syn0 = s0', syn1 = s1' }
 
 -- |Construct a model from a Dictionary
 fromDictionary :: Dictionary -> IO Model
@@ -213,7 +213,7 @@ model :: Int        -- number of words
       -> IO Model
 model words dim = do
   s0 <- randomConnectionValues words dim
-  s1 <- A.newArray (0, words * dim -1) 0
+  let s1 = R.fromListUnboxed (Z :. words :. dim) (take (words * dim) [0..])
   return $ Model words dim s0 s1 emptyDictionary defaultWindow
 
 -- |Initialize the connection matrix with random values.
@@ -227,7 +227,7 @@ randomConnectionValues :: Int       -- number of rows
                        -> IO Layer -- initialized matrix 
 randomConnectionValues rows cols = do
   g <- getStdGen
-  A.newListArray (0,rows * cols -1) (map (/fromIntegral cols) (randoms g))
+  return $ fromListUnboxed (Z :. rows :. cols) (take (rows * cols) (map (/fromIntegral cols) (randoms g)))
   
 
 randoms :: RandomGen g => g -> [ Double ]

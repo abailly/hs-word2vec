@@ -7,7 +7,7 @@
 -- a 2d picture of the most frequent words from the dictionary.
 module Display(drawSelectedWords, pcaAnalysis) where
 
-import qualified Data.Array.IO as A
+import qualified Data.Array.Repa as A
 -- hmatrix package
 import qualified Data.Packed.Matrix as M
 import qualified Data.Packed.Vector as V
@@ -29,13 +29,13 @@ import Control.Lens
 -- We first transform the syn0 values of model into a Matrix of doubles
 -- then compute 2 first PCA from this matrix. The first 2 PCAs are zipped along with each corresponding
 -- word from the vocabulary to produce a vector of tuples with coordinates
-pcaAnalysis :: Model -> IO [(String, Double, Double)]
-pcaAnalysis m = do
-  matrix <- toMatrix (numberOfWords m) (modelSize m) (syn0 m)
-  let (pc1, _ , residual) = P.firstPC matrix
-  let (pc2, _ , _)        = P.firstPC residual
-  let indexedWords        = orderedWords (vocabulary m)
-  return $ zip3 indexedWords (V.toList pc1)  (V.toList pc2) 
+pcaAnalysis :: Model -> [(String, Double, Double)]
+pcaAnalysis m =
+  let matrix = toMatrix (numberOfWords m) (modelSize m) (syn0 m)
+      (pc1, _ , residual) = P.firstPC matrix
+      (pc2, _ , _)        = P.firstPC residual
+      indexedWords        = orderedWords (vocabulary m)
+  in zip3 indexedWords (V.toList pc1)  (V.toList pc2) 
 
 -- |Draw  a chart of the X most frequent words in a model using PCA dimensions.
 drawSelectedWords :: [(String,Double,Double)]  -- ^Result of PCA analysis from model
@@ -56,6 +56,6 @@ drawSelectedWords vectors selectedWords = let
    toRenderable layout
 
 
-
-toMatrix :: Int -> Int -> Layer -> IO (M.Matrix Double)
-toMatrix r c l = A.getElems l >>= return . M.trans . (r M.>< c)
+-- | Turn a Layer into a (transposed) Matrix for purpose of PCA.
+toMatrix :: Int -> Int -> Layer -> M.Matrix Double
+toMatrix r c = M.trans . (r M.>< c) . A.toList
