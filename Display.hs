@@ -58,4 +58,4 @@ drawSelectedWords vectors selectedWords = let
 
 -- | Turn a Layer into a (transposed) Matrix for purpose of PCA.
 toMatrix :: Int -> Int -> Layer -> M.Matrix Double
-toMatrix r c = M.trans . (r M.>< c) . A.toList
+toMatrix r c = M.trans . (r M.>< c) . layerToList

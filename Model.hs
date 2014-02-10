@@ -24,11 +24,16 @@ import Data.Array.Repa(Z(..),
                        ix2, ix1, Array, (!), U, DIM1, DIM2, fromListUnboxed)
 
 import qualified Data.Array.Repa as R
+import qualified Data.IntMap as I
 import Huffman
 import Window
 import Words
 
-type Layer = Array U DIM2 Double
+-- | Used for vector computations
+type Vector = (Array U DIM1 Double)
+
+-- | More efficient to update part of a map than a complete matrix
+type Layer = I.IntMap Vector
 
 data Model = Model {
   -- Number of words in the model
@@ -67,7 +72,9 @@ defaultWindow = 10
 defaultFeatures :: Int
 defaultFeatures = 100
 
-type Vector = (Array U DIM1 Double)
+-- | Output a layer (matrix) as a list of doubles concatenating all rows
+layerToList :: Layer -> [Double]
+layerToList = concat . map R.toList . I.elems
 
 -- | Raw coefficients of given word
 --
@@ -80,7 +87,7 @@ coefficient m w = do
   let layerSize = modelSize m
   let offset = wordIndex * layerSize
   let s0 = syn0 m
-  computeP $ slice s0 (Z :. offset :. All)
+  return $ s0 I.! wordIndex
 
 -- | Normalize given array to a vector of length 1.
 unitVector :: Vector -> IO Vector
@@ -143,11 +150,8 @@ trainWindow alpha !m (w, ws) =
   foldM (trainWord alpha w) m (filter (/= w) ws)
 
 -- |Update a single row of a matrix with a vector at given index.
-updateLayer :: Layer -> Vector -> Int -> IO Layer
-updateLayer l v x = computeP $
-                    R.traverse2 l v
-                      (\ ij k -> ij)
-                      (\ m' v' coord@(Z :. r :. c) -> if r == x then v' (Z :. c) else m' coord) 
+updateLayer :: Vector -> Int -> Layer -> Layer
+updateLayer v x = I.adjust (const v) x 
 
 -- | Train model on a single word, given a reference word
 --
@@ -170,16 +174,16 @@ trainWord alpha ref m word = do
 
   let neu1eInitial = fromListUnboxed (ix1 layerSize) (take layerSize [0..])
       
-  let l0 = slice s0 (Z :. index' :. All)
+  let l0 = s0 I.! index'
 
   -- update a single point
       
-  let updatePoint :: (Array U DIM1 Double, Array U DIM2 Double) ->
+  let updatePoint :: (Array U DIM1 Double, Layer) ->
                      (Int, Bin) ->
-                     IO (Array U DIM1 Double, Array U DIM2 Double)
+                     IO (Array U DIM1 Double, Layer)
       updatePoint (neu1e,s1) (p,b) = do
         -- dot product of two vectors
-        let l1 = slice s1 (Z :. p :. All)
+        let l1 = s1 I.! p
         f <- sumP (l0 *^ l1)
         let exp_f = exp (f ! Z)
         -- compute gradient
@@ -188,16 +192,13 @@ trainWord alpha ref m word = do
         neu1e' <- computeP $ (R.map (*g) l1) +^ neu1e
         -- apply gradient on hidden layer
         l1' <- computeP $ (R.map (*g) l0) +^ l1
-        s1' <- updateLayer s1 l1' p 
-        return (neu1e',s1') 
+        return (neu1e',updateLayer l1' p s1) 
 
       
   (neu1e, s1')  <- foldM updatePoint (neu1eInitial, syn1 m) (zip points huff)
 
   -- report computed gradient to input layer
-  s0' <- updateLayer s0 neu1e index' 
-  
-  return $ m { syn0 = s0', syn1 = s1' }
+  return $ m { syn0 = updateLayer neu1e index' s0, syn1 = s1' }
 
 -- |Construct a model from a Dictionary
 fromDictionary :: Dictionary -> IO Model
@@ -212,23 +213,23 @@ model :: Int        -- number of words
       -> Int        -- number of features (dimensions)
       -> IO Model
 model words dim = do
-  s0 <- randomConnectionValues words dim
-  let s1 = R.fromListUnboxed (Z :. words :. dim) (take (words * dim) [0..])
+  vecs <- mapM (const $ randomVector dim) [0..words-1]
+  let s0 = I.fromList (zip [0..words-1] vecs)
+  let nulls = map (const $ R.fromListUnboxed (Z :. dim) (take dim [0..])) [0..words-1]
+  let s1 = I.fromList (zip [0..words-1] nulls)
   return $ Model words dim s0 s1 emptyDictionary defaultWindow
 
--- |Initialize the connection matrix with random values.
+-- |Initialize a vector with random values.
 --
 -- Values are distributed in such a way that each cell is between -0.5 and 0.5 and
--- is further divided by the total number of cols in the row so that the sum of values in
+-- is further divided by the total number of cells row so that the sum of values in
 -- a row is always between -0.5 and +0.5
 --
-randomConnectionValues :: Int       -- number of rows
-                       -> Int       -- number of cols per row
-                       -> IO Layer -- initialized matrix 
-randomConnectionValues rows cols = do
+randomVector :: Int       -- number of cells
+             -> IO Vector -- initialized vector
+randomVector cols = do
   g <- getStdGen
-  return $ fromListUnboxed (Z :. rows :. cols) (take (rows * cols) (map (/fromIntegral cols) (randoms g)))
-  
+  return $ fromListUnboxed (Z :. cols) (take cols (map (/fromIntegral cols) (randoms g)))
 
 randoms :: RandomGen g => g -> [ Double ]
 randoms g = let (i,g') = random g

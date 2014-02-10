@@ -71,6 +71,8 @@ short summary of how I implemented it:
   been integrated in `cabal` as
   [cabal sandbox](http://www.haskell.org/cabal/users-guide/installing-packages.html#developing-with-sandboxes).
 
+## About Parallelization
+
 # Conclusion
 
 This was fun. And challenging. The most challenging part was trying to understand the training algorithm. The python code was very

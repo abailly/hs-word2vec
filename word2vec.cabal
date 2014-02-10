@@ -15,6 +15,7 @@ Executable word2vec
                  hmatrix-nipals >= 0.2,
                  heap >= 1,
                  utf8-string >= 0.3,
+                 containers >= 0.5,
                  regex-tdfa >= 1.1,
                  tokenize >= 0.1,
                  random >= 1.0,
