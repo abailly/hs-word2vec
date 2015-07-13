@@ -1,42 +1,33 @@
 module Crawl where
 
-import Network.Browser(  browse,
-                         setCookies,
-                         request)
-import Network.HTTP(     rspBody,
-                         getRequest,
-                         rspBody,
-                         mkRequest,
-                         RequestMethod(..),
-                         simpleHTTP)
-import Network.URI(parseURI,URI)
-import Data.Maybe(fromJust)
-import Text.HTML.TagSoup(fromAttrib, 
-                         isTagOpenName,
-                         parseTags,
-                         Tag(..))
-import Data.List(isPrefixOf,
-                 isSuffixOf)
-import Control.Arrow((&&&))
-import Control.Monad(when)
-import Text.Regex.TDFA((=~))
+import           Control.Arrow        ((&&&))
+import           Control.Monad        (when)
 import qualified Data.ByteString.Lazy as L
-import System.FilePath(splitExtension)
-import System.Posix.Files(fileExist)
-import System.Process(system)
-import System.Exit(ExitCode(..))
+import           Data.List            (isPrefixOf, isSuffixOf)
+import           Data.Maybe           (fromJust)
+import           Network.Browser      (browse, request, setCookies)
+import           Network.HTTP         (RequestMethod (..), getRequest,
+                                       mkRequest, rspBody, rspBody, simpleHTTP)
+import           Network.URI          (URI, parseURI)
+import           System.Exit          (ExitCode (..))
+import           System.FilePath      (splitExtension)
+import           System.Posix.Files   (fileExist)
+import           System.Process       (system)
+import           Text.HTML.TagSoup    (Tag (..), fromAttrib, isTagOpenName,
+                                       parseTags)
+import           Text.Regex.TDFA      ((=~))
 
-import Concurrent
+import           Concurrent
 
 -- |Filter prev/next links.
 prevNext :: [ Tag String ] -> (Maybe String, Maybe String)
 prevNext = locatePrevNext (Nothing, Nothing)
   where
     locatePrevNext res []  = res
-    locatePrevNext (p,n) (tag@(TagOpen "a" _): TagText t: rest) | isSuffixOf "Prev" t = locatePrevNext (Just $ fromAttrib "href" tag, n) rest 
-                                                                | isPrefixOf "Next" t = locatePrevNext (p, Just $ fromAttrib "href" tag) rest 
+    locatePrevNext (p,n) (tag@(TagOpen "a" _): TagText t: rest) | isSuffixOf "Prev" t = locatePrevNext (Just $ fromAttrib "href" tag, n) rest
+                                                                | isPrefixOf "Next" t = locatePrevNext (p, Just $ fromAttrib "href" tag) rest
     locatePrevNext res (_:ts) = locatePrevNext res ts
-  
+
 -- |Filter all href links in a page.
 papers :: [ Tag String ] -> [ String ]
 papers = filter (isPrefixOf "paper.jsp").map (fromAttrib "href").filter (isTagOpenName  "a")
@@ -52,7 +43,7 @@ collectPage = papers &&& prevNext
 paperId :: String -> String
 paperId link = case link =~ "paper.jsp.r=([^&]+)&.*" :: (String,String,String,[String]) of
   (_,_,_,x:_) -> x
-  _           -> ""  
+  _           -> ""
 
 -- |Get first page of query.
 firstPage :: IO String
@@ -111,7 +102,7 @@ downloadPDF docId =  do
     replaceChars c   = c
 
 -- |Dowload all PDF of papers
-downloadPDFs :: IO [ String ] 
+downloadPDFs :: IO [ String ]
 downloadPDFs = do
   ids <- allPaperIds
   runInThreadPool 10 ids downloadPDF
@@ -127,4 +118,4 @@ convertToText pdf = do
   case exit of
     ExitSuccess   -> return txt
     ExitFailure _ -> return ""
-      
+
