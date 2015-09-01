@@ -7,22 +7,21 @@
 -- a 2d picture of the most frequent words from the dictionary.
 module Display(drawSelectedWords, pcaAnalysis) where
 
-import qualified Data.Array.Repa as A
 -- hmatrix package
-import qualified Data.Packed.Matrix as M
-import qualified Data.Packed.Vector as V
+import qualified Data.Packed.Matrix           as M
+import qualified Data.Packed.Vector           as V
 -- Module containing code for PCA computation
 import qualified Numeric.LinearAlgebra.NIPALS as P
 
-import Words
-import Model
+import           Model
+import           Words
 
 
-import Graphics.Rendering.Chart
-import Data.Default.Class
-import Data.Colour
-import Data.Colour.Names
-import Control.Lens
+import           Control.Lens
+import           Data.Colour
+import           Data.Colour.Names
+import           Data.Default.Class
+import           Graphics.Rendering.Chart
 
 -- | Compute 2D mapping of words from a model.
 --
@@ -35,7 +34,7 @@ pcaAnalysis m =
       (pc1, _ , residual) = P.firstPC matrix
       (pc2, _ , _)        = P.firstPC residual
       indexedWords        = orderedWords (vocabulary m)
-  in zip3 indexedWords (V.toList pc1)  (V.toList pc2) 
+  in zip3 indexedWords (V.toList pc1)  (V.toList pc2)
 
 -- |Draw  a chart of the X most frequent words in a model using PCA dimensions.
 drawSelectedWords :: [(String,Double,Double)]  -- ^Result of PCA analysis from model
@@ -43,10 +42,11 @@ drawSelectedWords :: [(String,Double,Double)]  -- ^Result of PCA analysis from m
                   -> Renderable ()             -- ^The output from Chart
 drawSelectedWords vectors selectedWords = let
   points = plot_points_style .~ filledCircles 2 (opaque red)
-           $ plot_points_values .~ [(x,y) |  (l,x,y) <- vectors, l `elem` selectedWords]
+           $ plot_points_values .~ [(x * 1000,y * 1000) |  (l,x,y) <- vectors, l `elem` selectedWords]
            $ def
 
-  labels = plot_annotation_values .~ [(x + 0.001,y + 0.001,l) |  (l,x,y) <- vectors, l `elem` selectedWords]
+
+  labels = plot_annotation_values .~ [(x * 1000 + 0.01,y * 1000 + 0.01,l) |  (l,x,y) <- vectors, l `elem` selectedWords]
            $ def
 
   layout = layout_title .~ "Words Vector Space"
