@@ -11,46 +11,45 @@ Cabal-version:        >= 1.2
 
 Executable word2vec
   Build-Depends: base,
-                 hmatrix >= 0.15,
-                 hmatrix-nipals >= 0.2,
-                 heap >= 1,
-                 utf8-string >= 0.3 && < 1,
-                 containers >= 0.5,
-                 regex-tdfa >= 1.1,
-                 tokenize >= 0.3,
-                 random >= 1.0,
-                 array >= 0.4,
-                 time >= 1.4,
-                 process >= 1.1,
-                 unix >= 2.6,
+                 hmatrix ,
+                 hmatrix-nipals ,
+                 heap ,
+                 utf8-string ,
+                 containers ,
+                 regex-tdfa ,
+                 tokenize ,
+                 random ,
+                 array ,
+                 time ,
+                 process ,
+                 unix ,
                  repa,
-                 filepath >= 1.3,
-                 bytestring >= 0.10,
-                 tagsoup >= 0.13,
-                 http-conduit >= 2.0,
-                 network >= 2.4,
-                 HTTP >= 4000.2,
-                 directory >= 1.2,
-                 Chart >= 1.1,
-                 Chart-diagrams >= 1.1,
-                 lens >= 3.10,
-                 colour >= 2.3,
+                 filepath ,
+                 bytestring ,
+                 tagsoup ,
+                 http-conduit ,
+                 network ,
+                 HTTP ,
+                 directory ,
+                 Chart ,
+                 Chart-diagrams ,
+                 lens ,
+                 colour ,
                  data-default-class,
-                 unordered-containers >= 0.2
+                 unordered-containers
   hs-source-dirs:     .
   main-is:            word2vec.hs
   ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision
 
 Executable crawl
   Build-Depends: base,
-                 process >= 1.1,
-                 unix >= 2.6,
-                 filepath >= 1.3,
-                 bytestring >= 0.10,
-                 tagsoup >= 0.13,
-                 http-conduit >= 2.0,
-                 HTTP >= 4000.2
-                 ,network-uri >= 2.6, network >= 2.6
+                 process ,
+                 unix ,
+                 filepath ,
+                 bytestring ,
+                 tagsoup ,
+                 http-conduit ,
+                 HTTP, network-uri , network
 
   hs-source-dirs:     .
   main-is:            arxiv.hs

@@ -1,33 +1,25 @@
+{-# LANGUAGE BangPatterns         #-}
+{-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleInstances #-}
 -- |Neural network based model of words similarity
 module Model where
-import Control.Monad(foldM, liftM2)
-import System.Random(random,getStdGen,RandomGen)
-import Data.Time.Clock(getCurrentTime,
-                       diffUTCTime)
-import System.IO.Unsafe
+import           Control.Monad       (foldM, liftM2)
 import qualified Data.HashMap.Strict as M
+import           Data.Time.Clock     (diffUTCTime, getCurrentTime)
+import           System.Random       (RandomGen, getStdGen, random)
 
-import qualified Data.Array.IO as A
+import qualified Data.Array.IO       as A
 
-import Data.Array.Repa(Z(..),
-                       computeP,
-                       sumP,
-                       slice,
-                       foldP,
-                       All(..),
-                       (:.)(..),
-                       Any(..),
-                       (*^),(+^),
-                       ix2, ix1, Array, (!), U, DIM1, DIM2, fromListUnboxed)
+import           Data.Array.Repa     ((:.) (..), All (..), Any (..), Array,
+                                      DIM1, DIM2, U, Z (..), computeP, foldP,
+                                      fromListUnboxed, ix1, ix2, slice, sumP,
+                                      (!), (*^), (+^))
 
-import qualified Data.Array.Repa as R
-import qualified Data.IntMap as I
-import Huffman
-import Window
-import Words
+import qualified Data.Array.Repa     as R
+import qualified Data.IntMap         as I
+import           Huffman
+import           Window
+import           Words
 
 -- | Used for vector computations
 type Vector = (Array U DIM1 Double)
@@ -38,32 +30,32 @@ type Layer = I.IntMap Vector
 data Model = Model {
   -- Number of words in the model
   numberOfWords :: Int,
-  
+
   -- Size of the model or number of dimensions each word is mapped to
   -- also called number of features
-  modelSize :: Int,
-  
+  modelSize     :: Int,
+
   -- The input -> hidden connection matrix
   -- input layer has size equal to number of words in vocabulary, with each
   -- cell connected to a number of hidden cells equal to the 'dimension' of the model
   -- eg, the number of features we want to track defaulting to 100
   --
   -- syn0 is the original name in C word2vec implementation
-  syn0 :: !Layer,
+  syn0          :: !Layer,
 
   -- The hidden -> output connection matrix
   -- It has the same geometry as the input layer.
   -- syn1 is the original name in C word2vec implementation
-  syn1 :: !Layer,
+  syn1          :: !Layer,
 
   -- The dictionary
   -- Each word is mapped to a Coding structure containing, among other things,
   -- the Huffman encoding of the word and references to inner nodes this word is connected to
   -- contains also number of words and maximal length of coding vectors
-  vocabulary :: !Dictionary,
+  vocabulary    :: !Dictionary,
 
   -- Size of training window
-  window :: Int
+  window        :: Int
   } deriving (Show)
 
 defaultWindow :: Int
@@ -71,6 +63,9 @@ defaultWindow = 10
 
 defaultFeatures :: Int
 defaultFeatures = 100
+
+debug :: String -> IO ()
+debug _  = return ()
 
 -- | Output a layer (matrix) as a list of doubles concatenating all rows
 layerToList :: Layer -> [Double]
@@ -95,8 +90,8 @@ unitVector v = do
   s <- foldP (\ s x -> s + (x * x)) 0 v
   let norm = sqrt (s ! Z)
   computeP $ R.map (/ norm) v
-  
-  
+
+
 -- | Compute similarity between two words
 --
 -- Uses the cosine similarity, eg. dot product between the two vectors. The vectors should be of
@@ -116,7 +111,7 @@ trainModel _ dict sentences = do
   let alpha = 0.001
   putStrLn $ "Start training model " ++ (show (numberOfWords theModel, modelSize theModel))
   foldM (trainSentence alpha) (0, theModel) sentences >>= return.snd
-  
+
 
 -- |Train given model with a single sentence.
 --
@@ -134,35 +129,36 @@ trainSentence :: Double
 trainSentence alpha (count,!m) sentence = do
   let len = length sentence
   start <- getCurrentTime
-  putStr $ "Training " ++ (show len) ++ "/" ++ (show count) ++ " words"
+  putStrLn $ "Training " ++ (show len) ++ "/" ++ (show count) ++ " words"
   g <- getStdGen
   m'<- foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
   end <- getCurrentTime
   putStrLn $ " in " ++ (show $ diffUTCTime end start)
   return (count + len,m')
 
-      
-trainWindow :: Double            -- alpha threshold 
+
+trainWindow :: Double            -- alpha threshold
           -> Model               -- model to train
           -> (String,[String])   -- prefix, word, suffix to select window around word
           -> IO Model            -- updated model
-trainWindow alpha !m (w, ws) = 
-  foldM (trainWord alpha w) m (filter (/= w) ws)
+trainWindow alpha !m (w, ws) = debug ("training window " ++ show (w,ws)) >>
+                               foldM (trainWord alpha w) m (filter (/= w) ws)
 
 -- |Update a single row of a matrix with a vector at given index.
 updateLayer :: Vector -> Int -> Layer -> Layer
-updateLayer v x = I.adjust (const v) x 
+updateLayer v x = I.adjust (const v) x
 
 -- | Train model on a single word, given a reference word
 --
 -- Uses skipgram training method to train model given two "close" words.
 -- Code is a direct transposition of C code into Haskell using Mutable arrays.
-trainWord :: Double    -- alpha threshold 
+trainWord :: Double    -- alpha threshold
           -> String    -- reference word
           -> Model     -- model to train
           -> String    -- word to learn
           -> IO Model
 trainWord alpha ref m word = do
+  debug $ "train word " ++ word ++ " against " ++ ref
   let h = dictionary $ vocabulary m
   let Just (Coding _ _ huff points) = M.lookup ref h
   let Just (Coding index' _ _ _) = M.lookup word h
@@ -172,30 +168,39 @@ trainWord alpha ref m word = do
 
   let s0 = syn0 m
 
-  let neu1eInitial = fromListUnboxed (ix1 layerSize) (take layerSize [0..])
-      
+  let neu1eInitial = fromListUnboxed (ix1 layerSize) (replicate layerSize 0)
+  debug $ "neu1e initial " ++ show neu1eInitial
+
   let l0 = s0 I.! index'
 
+  debug $ "layer 0 " ++ show l0
   -- update a single point
-      
+
   let updatePoint :: (Array U DIM1 Double, Layer) ->
                      (Int, Bin) ->
                      IO (Array U DIM1 Double, Layer)
       updatePoint (neu1e,s1) (p,b) = do
         -- dot product of two vectors
         let l1 = s1 I.! p
+        debug $ "layer 1 " ++ show l1
         f <- sumP (l0 *^ l1)
+        debug $ "dot product f " ++ show f
         let exp_f = exp (f ! Z)
         -- compute gradient
         let g = (1 - asNum b - exp_f) * alpha
+        debug $ "gradient g " ++ show g
         -- apply gradient on input layer
         neu1e' <- computeP $ (R.map (*g) l1) +^ neu1e
+        debug $ "applied gradient to input layer neu1e' " ++ show neu1e'
         -- apply gradient on hidden layer
         l1' <- computeP $ (R.map (*g) l0) +^ l1
-        return (neu1e',updateLayer l1' p s1) 
+        debug $ "applied gradient to hidden layer l1' " ++ show l1'
+        return (neu1e',updateLayer l1' p s1)
 
-      
+
   (neu1e, s1')  <- foldM updatePoint (neu1eInitial, syn1 m) (zip points huff)
+
+  debug $ "updated neu1e " ++ show neu1e
 
   -- report computed gradient to input layer
   return $ m { syn0 = updateLayer neu1e index' s0, syn1 = s1' }
@@ -215,7 +220,7 @@ model :: Int        -- number of words
 model words dim = do
   vecs <- mapM (const $ randomVector dim) [0..words-1]
   let s0 = I.fromList (zip [0..words-1] vecs)
-  let nulls = map (const $ R.fromListUnboxed (Z :. dim) (take dim [0..])) [0..words-1]
+  let nulls = map (const $ R.fromListUnboxed (Z :. dim) (replicate dim 0)) [0..words-1]
   let s1 = I.fromList (zip [0..words-1] nulls)
   return $ Model words dim s0 s1 emptyDictionary defaultWindow
 
@@ -234,4 +239,4 @@ randomVector cols = do
 randoms :: RandomGen g => g -> [ Double ]
 randoms g = let (i,g') = random g
             in (i - 0.5) : randoms g'
-  
+

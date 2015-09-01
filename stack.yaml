@@ -1,0 +1,7 @@
+flags: {}
+packages:
+- '.'
+extra-deps:
+  - hmatrix-nipals-0.2
+  - tokenize-0.3.0
+resolver: nightly-2015-09-01
