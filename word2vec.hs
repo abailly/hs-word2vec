@@ -4,7 +4,7 @@ import           Data.List                                 (isSuffixOf)
 import           Graphics.Rendering.Chart.Backend.Diagrams
 import           Prelude                                   hiding (readFile)
 import           System.Console.GetOpt
-import           System.Directory                          (getDirectoryContents)
+import           System.Directory                          (doesFileExist, getDirectoryContents)
 import           System.Environment                        (getArgs)
 import           System.FilePath                           ((</>))
 import           System.IO                                 (BufferMode (..),
@@ -12,8 +12,9 @@ import           System.IO                                 (BufferMode (..),
                                                             hGetContents,
                                                             hSetBuffering,
                                                             hSetEncoding,
-                                                            openFile, stdout,
-                                                            utf8, withFile)
+                                                            openFile, readFile,
+                                                            stdout, utf8,
+                                                            withFile)
 
 import           Display
 import           Model
@@ -84,18 +85,25 @@ main = do
   args <- getArgs
   (configs,selectedWords) <- word2vecOpts args
   let dir = corpusDir configs
+      modelFile = (dir </> "model.vec")
+      pcaFile = (dir </> "model.pca")
+      diagramFile = (dir </> "model.svg")
   putStrLn $ "analyzing directory "++ dir
   hSetBuffering stdout NoBuffering
 
-  m <- analyzeDirectory dir
+  hasModel <- doesFileExist modelFile
+
+  m <- if hasModel then
+          read `fmap` readFile modelFile
+       else
+         analyzeDirectory dir
+
   let p = pcaAnalysis m
-  let chart = drawSelectedWords p selectedWords
+      top100 = mostFrequentWords 100 m
+      chart = drawSelectedWords p (if null selectedWords then top100 else selectedWords)
   when (length p /= (numberOfWords m))
     (fail $ "PCA should have same number of words than model: "++ (show $ length p) ++ "vs. " ++ (show $ numberOfWords m))
 
-  let modelFile = (dir </> "model.vec")
-  let pcaFile = (dir </> "model.pca")
-  let diagramFile = (dir </> "model.svg")
 
   putStrLn $ "Writing model to file "++ modelFile
   writeFile modelFile (show m)

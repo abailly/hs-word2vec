@@ -18,10 +18,7 @@ import           Text.Regex.TDFA     ((=~))
 data Dictionary = Dict {
   dictionary       :: HashMap String Coding,
   dictionaryLength :: Int,
-  encodingLength   :: Int } deriving (Eq)
-
-instance Show Dictionary where
-  show (Dict dict size len) = concat $ intersperse "," [show $ toList dict,  show size, show len]
+  encodingLength   :: Int } deriving (Eq, Show, Read)
 
 emptyDictionary :: Dictionary
 emptyDictionary = Dict empty 0 0

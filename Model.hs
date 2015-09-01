@@ -56,7 +56,7 @@ data Model = Model {
 
   -- Size of training window
   window        :: Int
-  } deriving (Show)
+  } deriving (Show, Read)
 
 defaultWindow :: Int
 defaultWindow = 10
@@ -208,6 +208,9 @@ trainWord alpha ref m word = do
 -- |Construct a model from a Dictionary
 fromDictionary :: Dictionary -> IO Model
 fromDictionary d@(Dict dict size len) = model size defaultFeatures >>= return . \ m -> m { vocabulary = d }
+
+mostFrequentWords :: Int -> Model -> [ String ]
+mostFrequentWords len = take len . orderedWords . vocabulary
 
 -- |Initializes a model of given size
 --
