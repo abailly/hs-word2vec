@@ -7,9 +7,9 @@ License-file:         LICENSE
 Author:               Arnaud Bailly
 Maintainer:           Arnaud Bailly <arnaud.oqube@gmail.com>
 Build-Depends:        base
-Cabal-version:        >= 1.2
+Cabal-version:        >= 1.20
 
-Executable word2vec
+Library
   Build-Depends: base,
                  hmatrix ,
                  hmatrix-nipals ,
@@ -34,15 +34,34 @@ Executable word2vec
                  Chart ,
                  Chart-diagrams ,
                  lens ,
+                 network-uri ,
                  colour ,
                  data-default-class,
                  unordered-containers
-  hs-source-dirs:     .
-  main-is:            word2vec.hs
+  hs-source-dirs:     src
+  exposed-modules: Display, Model, Words, Crawl
+  other-modules: Concurrent, Huffman, Window
   ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision
 
+Executable words
+  main-is: word2vec.hs
+  hs-source-dirs: main
+  build-depends: word2vec,
+                 directory ,
+                 Chart ,
+                 Chart-diagrams ,
+                 base,
+                 unix ,
+                 filepath ,
+                 bytestring ,
+                 tagsoup ,
+                 http-conduit ,
+                 HTTP, network-uri , network
+  ghc-options:        -Wall -threaded -rtsopts -O3
+
 Executable crawl
-  Build-Depends: base,
+  Build-Depends: word2vec,
+                 base,
                  process ,
                  unix ,
                  filepath ,
@@ -51,12 +70,12 @@ Executable crawl
                  http-conduit ,
                  HTTP, network-uri , network
 
-  hs-source-dirs:     .
+  hs-source-dirs:     main
   main-is:            arxiv.hs
   ghc-options:        -Wall -threaded -rtsopts -O3
 
--- Looks broken... Tests execution works but it hangs.
--- Test-Suite word2vec-test
---     type:          exitcode-stdio-1.0
---     main-is:       word2vec-test.hs
---     build-depends: base, doctest
+Test-Suite word2vec-test
+     type:          exitcode-stdio-1.0
+     hs-source-dirs:     test
+     main-is:       word2vec-test.hs
+     build-depends: base, doctest, word2vec
