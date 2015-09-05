@@ -37,7 +37,8 @@ Library
                  network-uri ,
                  colour ,
                  data-default-class,
-                 unordered-containers
+                 unordered-containers,
+                 subhask
   hs-source-dirs:     src
   exposed-modules: Display, Model, Words, Crawl
   other-modules: Concurrent, Huffman, Window

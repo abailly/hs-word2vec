@@ -1,0 +1,3 @@
+[submodule "subhask"]
+	path = subhask
+	url =  git@github.com:abailly/subhask.git
