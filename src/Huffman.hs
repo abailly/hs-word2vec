@@ -9,27 +9,45 @@ module Huffman(Code,
                asNum) where
 import           Data.HashMap.Strict (HashMap, empty, insert, toList)
 import qualified Data.Heap           as H
+import           Data.List           (unfoldr)
 import           Data.Maybe          (fromJust)
 
 data Bin = Zero | One deriving (Eq, Ord, Show, Read)
 
-type Code = [Bin]
+newtype Code = Code [Bin] deriving (Eq)
 
 asNum :: (Num a ) => Bin -> a
 asNum Zero = 0
 asNum One  = 1
 
 instance Enum Code where
-  toEnum n = case n `mod` 2 of
-    0 -> Zero : toEnum' (n `div` 2)
-    _ -> One : toEnum' (n `div` 2)
+  toEnum = Code . reverse . unfoldr encodeBin
     where
-      toEnum' 0 = []
-      toEnum' k = toEnum k
+      encodeBin 0 = Nothing
+      encodeBin n = case n `mod` 2 of
+        0 -> Just (Zero, n `div` 2)
+        _ -> Just (One , n `div` 2)
 
-  fromEnum []       = 0
-  fromEnum (Zero:b) = 2 * fromEnum b
-  fromEnum (One:b)  = 2 * fromEnum b + 1
+  fromEnum (Code c)       = fromEnum' c
+    where
+      fromEnum' []       = 0
+      fromEnum' (Zero:b) = 2 * fromEnum' b
+      fromEnum' (One:b)  = 2 * fromEnum' b + 1
+
+instance Show Code where
+  show (Code digits) = show' digits
+    where
+      show' (Zero:cs) = '0':show' cs
+      show' (One:cs)  = '1':show' cs
+      show' []        = []
+
+
+instance Read Code where
+  readsPrec _ s = [ readCode s [] ]
+    where
+      readCode ('1':cs) c = readCode cs (One : c)
+      readCode ('0':cs) c = readCode cs (Zero : c)
+      readCode r        c = (Code c, r)
 
 data Coding = Coding {
   -- Index of word in corpus
@@ -53,7 +71,7 @@ instance Ord Coding where
   compare (Coding _ f _ _ ) (Coding _ f' _ _ ) = compare f f'
 
 buildWord ::  ([Huffman],Int) -> (String, Int) -> ([Huffman],Int)
-buildWord (ws, n) (w,f) = ((Leaf w (Coding n f [] [])):ws, n+1)
+buildWord (ws, n) (w,f) = ((Leaf w (Coding n f (Code []) [])):ws, n+1)
 
 -- |Returns the list of words stored in given heap in ascending order.
 ascWords :: H.MinHeap Huffman -> [ String ]
@@ -97,7 +115,7 @@ arborify h = foldl buildTree h [0.. sizeOfVocabulary -1]
                          Just (min2,h2) -> H.insert (Node min1 min2
                                                      (Coding n
                                                       (freq min1 + freq min2)
-                                                      []
+                                                      (Code [])
                                                       [])) h2
                          Nothing        -> h
 
@@ -105,7 +123,7 @@ arborify h = foldl buildTree h [0.. sizeOfVocabulary -1]
 encode :: H.MinHeap Huffman -> HashMap String Coding
 encode h = encode' (fst $ fromJust $ H.view h) [] [] empty
   where
-    encode' (Leaf w c)          code points map = insert w c { huffman = code, wordPoints = points } map
+    encode' (Leaf w c)          code points map = insert w c { huffman = Code code, wordPoints = points } map
     encode' (Node left right c) code points map = let pts = index c : points
                                                       m1  = encode' left (Zero:code) pts map
                                                   in
