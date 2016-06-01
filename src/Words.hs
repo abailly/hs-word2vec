@@ -58,11 +58,13 @@ tokenizeFiles files = do
     where
       indexFile dict f = do
         h <- openFile f ReadMode
-        putStrLn ("Tokenizing " ++ f)
-        hSetEncoding h utf8
-        s <- hGetContents h
-        putStrLn $ "read " ++ show (length s) ++ " chars from " ++ f
-        hClose h
+        (do
+            putStrLn ("Tokenizing " ++ f)
+            hSetEncoding h utf8
+            s <- hGetContents h
+            putStrLn $ "read " ++ show (length s) ++ " chars from " ++ f)
+          `finally` hClose h
+
         let dict' = s `seq` (indexString dict s)
         putStrLn $ "Indexed dictionary with " ++ show (size dict')  ++ " words"
         return $ dict' `seq` dict'
