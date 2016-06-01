@@ -2,3 +2,4 @@
 *.pdf
 *.o
 *.hi
+.stack-work/
