@@ -9,12 +9,8 @@ import           System.Directory                          (doesFileExist, getDi
 import           System.Environment                        (getArgs)
 import           System.FilePath                           ((</>))
 import           System.IO                                 (BufferMode (..),
-                                                            IOMode (..), hClose,
-                                                            hGetContents,
                                                             hSetBuffering,
-                                                            hSetEncoding,
-                                                            openFile, readFile,
-                                                            stdout, utf8)
+                                                            readFile, stdout)
 
 import           Data.Aeson                                (encode)
 import           Display

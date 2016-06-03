@@ -11,17 +11,14 @@ module Display(drawSelectedWords, pcaAnalysis) where
 import qualified Data.Packed.Matrix           as M
 import qualified Data.Packed.Vector           as V
 -- Module containing code for PCA computation
-import qualified Numeric.LinearAlgebra.NIPALS as P
-
-import           Model
-import           Words
-
-
 import           Control.Lens
 import           Data.Colour
 import           Data.Colour.Names
 import           Data.Default.Class
 import           Graphics.Rendering.Chart
+import           Model
+import qualified Numeric.LinearAlgebra.NIPALS as P
+import           Words.Dictionary
 
 -- | Compute 2D mapping of words from a model.
 --

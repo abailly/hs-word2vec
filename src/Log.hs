@@ -9,7 +9,7 @@ module Log where
 import           Control.Monad.Trans (MonadIO)
 import           Data.Aeson
 import           GHC.Generics
-import           Words
+import           Words.Dictionary
 
 -- |All type of messages emitted by application while working.
 data Message = EncodedDictionary Dictionary

@@ -15,7 +15,7 @@ import           Data.Time.Clock     (diffUTCTime, getCurrentTime)
 import           Huffman
 import           System.Random       (RandomGen, getStdGen, random)
 import           Window
-import           Words
+import           Words.Dictionary
 
 -- | Used for vector computations
 type Vector = (Array U DIM1 Double)
