@@ -13,21 +13,11 @@ import           System.IO                                 (BufferMode (..),
                                                             hSetBuffering,
                                                             hSetEncoding,
                                                             openFile, readFile,
-                                                            stdout, utf8,
-                                                            withFile)
+                                                            stdout, utf8)
 
 import           Display
 import           Model
 import           Words
-
-pca :: String -> IO  [(String, Double, Double)]
-pca file = analyze file >>= return . pcaAnalysis
-
-analyze :: String -> IO Model
-analyze file = withFile file ReadMode $ \ h -> do
-  content <- hGetContents h >>= return.tokenizeString
-  dict <- tokenizeFiles [file]
-  trainModel 0 dict [content]
 
 trainFiles :: [String] -> IO Model
 trainFiles txts = do

@@ -6,7 +6,6 @@ License:              BSD3
 License-file:         LICENSE
 Author:               Arnaud Bailly
 Maintainer:           Arnaud Bailly <arnaud.oqube@gmail.com>
-Build-Depends:        base
 Cabal-version:        >= 1.20
 
 Library
@@ -42,11 +41,12 @@ Library
   hs-source-dirs:     src
   exposed-modules: Display, Model, Words, Crawl
   other-modules: Concurrent, Huffman, Window
-  ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision
+  ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision -fprof-auto
 
 Executable words
   main-is: word2vec.hs
   hs-source-dirs: main
+  default-language: Haskell2010
   build-depends: word2vec,
                  directory ,
                  Chart ,
@@ -58,9 +58,10 @@ Executable words
                  tagsoup ,
                  http-conduit ,
                  HTTP, network-uri , network
-  ghc-options:        -Wall -threaded -rtsopts -O3
+  ghc-options:        -Wall -threaded -rtsopts -O3 -fprof-auto
 
 Executable crawl
+  default-language: Haskell2010
   Build-Depends: word2vec,
                  base,
                  process ,
@@ -76,7 +77,8 @@ Executable crawl
   ghc-options:        -Wall -threaded -rtsopts -O3
 
 Test-Suite word2vec-test
-     type:          exitcode-stdio-1.0
-     hs-source-dirs:     test
-     main-is:       word2vec-test.hs
-     build-depends: base, doctest, word2vec
+  default-language: Haskell2010
+  type:          exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:       word2vec-test.hs
+  build-depends: base, doctest, word2vec
