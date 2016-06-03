@@ -19,6 +19,8 @@ import           System.IO           (IOMode (..), hClose, hGetContents,
                                       hSetEncoding, openFile, utf8, withFile)
 import           Text.Regex.TDFA     ((=~))
 
+type Index = HashMap String Int
+
 data Dictionary = Dict {
   dictionary       :: HashMap String Coding,
   dictionaryLength :: Int,
@@ -38,7 +40,7 @@ orderedWords :: Dictionary -> [ String ]
 orderedWords (Dict d _ _)  = map fst $ sortBy (comparing (index.snd)) (toList d)
 
 -- |Index a list of words into a frequency map
-indexWord :: HashMap String Int -> String -> HashMap String Int
+indexWord :: Index -> String -> Index
 indexWord m w = insertWith (+) w 1 m
 
 -- |Tokenize and normalize a string
@@ -46,35 +48,41 @@ tokenizeString :: String -> [ String ]
 tokenizeString = map (map toLower).filter (=~ "^[a-zA-Z'-]+$").tokenize
 
 -- |Update a frequency map with tokens from given string.
-indexString :: HashMap String Int -> String -> HashMap String Int
-indexString dict s = foldl indexWord dict $  tokenizeString s
+indexString :: Index -> [ String ] -> Index
+indexString = foldl indexWord
 
-encodeWords :: HashMap String Int -> Dictionary
+encodeWords :: Index -> Dictionary
 encodeWords dictionary = let encoding = huffmanEncode $ dictionary
                              encodingLength = maximum (map (length . unCode . huffman) $ elems encoding)
                          in Dict encoding (size encoding) encodingLength
 
+indexFile :: FilePath -> Index -> IO (Index, [String])
+indexFile file dict = do
+  h <- openFile file ReadMode
+  s <- (do
+          putStrLn ("Tokenizing " ++ file)
+          hSetEncoding h utf8
+          s <- hGetContents h
+          putStrLn $ "read " ++ show (length s) ++ " chars from " ++ file
+          return s
+      ) `finally` hClose h
+
+  let tokens = tokenizeString s
+      dict' = s `seq` indexString dict tokens
+  putStrLn $ "Indexed dictionary with " ++ show (size dict')  ++ " words"
+  return $ (dict' `seq` dict', tokens)
+
+
 -- |Encode the words of several files into a dictionary
 tokenizeFiles :: [String]        -- file paths
-             -> IO Dictionary
+              -> IO (Dictionary, [[String]])
 tokenizeFiles files = do
   putStrLn ("Tokenizing " ++ show (length files) ++ " files")
-  !dictionary <- foldM indexFile empty files
+  !(dictionary, rtokens) <- foldM tokenizeAndIndex (empty, []) files
   putStrLn $ "Encoding dictionary: " ++ (show $ size dictionary)
-  return $ encodeWords dictionary
+  return $ (encodeWords dictionary, reverse rtokens)
     where
-      indexFile dict f = do
-        h <- openFile f ReadMode
-        s <- (do
-            putStrLn ("Tokenizing " ++ f)
-            hSetEncoding h utf8
-            s <- hGetContents h
-            putStrLn $ "read " ++ show (length s) ++ " chars from " ++ f
-            return s
-          )
-          `finally` hClose h
-
-        let dict' = s `seq` (indexString dict s)
-        putStrLn $ "Indexed dictionary with " ++ show (size dict')  ++ " words"
-        return $ dict' `seq` dict'
+      tokenizeAndIndex (dict, toks) f = do
+        (dict', tokens) <- indexFile f dict
+        return (dict', tokens:toks)
 

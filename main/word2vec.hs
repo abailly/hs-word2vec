@@ -27,23 +27,10 @@ instance Progress IO where
 
 trainFiles :: [String] -> IO Model
 trainFiles txts = do
-  dict <- tokenizeFiles txts
+  (dict, contents) <- tokenizeFiles txts
   progress (EncodedDictionary dict)
-  contents <- mapM tokenizeFile txts
   let tokens = length contents
-  putStrLn $ "Training " ++ (show tokens) ++ " files"
   trainModel tokens dict contents
-    where
-      tokenizeFile f = do
-        h <- openFile f ReadMode
-        putStrLn ("Tokenizing " ++ f)
-        hSetEncoding h utf8
-        s <- hGetContents h
-        putStrLn $ "read " ++ show (length s) ++ " chars from " ++ f
-        hClose h
-        let dict' = s `seq` (tokenizeString s)
-        putStrLn $ "Tokenized " ++ f ++  "to " ++ show (length dict')  ++ " words"
-        return $ dict' `seq` dict'
 
 analyzeDirectory :: String -> IO Model
 analyzeDirectory dir = do

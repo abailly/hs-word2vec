@@ -58,7 +58,7 @@ Executable words
                  tagsoup ,
                  http-conduit ,
                  HTTP, network-uri , network
-  ghc-options:        -Wall -threaded -rtsopts -O3 -fprof-auto
+  ghc-options:   -Wall -threaded -rtsopts -O3 -fprof-auto
 
 Executable crawl
   default-language: Haskell2010

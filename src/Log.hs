@@ -13,6 +13,8 @@ import           Words
 
 -- |All type of messages emitted by application while working.
 data Message = EncodedDictionary Dictionary
+             | TokenizingFile FilePath
+             | TokenizedFile FilePath [ String ]
              deriving (Show, Generic)
 
 instance ToJSON Message
