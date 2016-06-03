@@ -61,7 +61,8 @@ main = do
       modelFile = (dir </> "model.vec")
       pcaFile = (dir </> "model.pca")
       diagramFile = (dir </> "model.svg")
-  putStrLn $ "analyzing directory "++ dir
+
+  progress $ AnalyzingDirectory dir
   hSetBuffering stdout NoBuffering
 
   hasModel <- doesFileExist modelFile
@@ -77,17 +78,17 @@ main = do
   when (length p /= (numberOfWords m))
     (fail $ "PCA should have same number of words than model: "++ (show $ length p) ++ "vs. " ++ (show $ numberOfWords m))
 
-
-  putStrLn $ "Writing model to file "++ modelFile
+  progress $ WritingModelFile modelFile
   writeFile modelFile (show m)
 
-  putStrLn $ "Writing PCA to file " ++ pcaFile
+  progress $ WritingPCAFile pcaFile
   writeFile pcaFile (show p)
 
-  putStrLn $ "Writing vector space diagram " ++ diagramFile ++ "for words " ++ (show selectedWords)
+  progress $ WritingDiagram diagramFile selectedWords
+
   (bs, _) <- renderableToSVGString chart 1000 1000
   BS.writeFile diagramFile bs
 
-  putStrLn "done"
+  progress $ Done
 
 

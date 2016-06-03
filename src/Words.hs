@@ -6,7 +6,7 @@ import           Control.Arrow       ((***))
 import           Control.DeepSeq     (force)
 import           Control.Exception   (evaluate, finally)
 import           Control.Monad       (foldM)
-import           Data.HashMap.Strict (empty, size)
+import           Data.HashMap.Strict (empty)
 import           Log
 import           Prelude             hiding (readFile)
 import           System.IO           (IOMode (..), hClose, hGetContents,

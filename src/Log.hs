@@ -13,11 +13,16 @@ import           GHC.Generics
 import           Words.Dictionary
 
 -- |All type of messages emitted by application while working.
-data Message = EncodedDictionary Dictionary
+data Message = AnalyzingDirectory FilePath
+             | EncodedDictionary Dictionary
              | TokenizingFiles Int
              | TokenizingFile FilePath
              | TokenizedFile FilePath [ String ]
              | TokenizedFiles [[String]]
+             | WritingModelFile FilePath
+             | WritingPCAFile FilePath
+             | WritingDiagram FilePath [ String ]
+             | Done
              deriving (Show, Generic)
 
 instance ToJSON Message
