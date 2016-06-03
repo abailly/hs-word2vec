@@ -14,8 +14,10 @@ import           Words.Dictionary
 
 -- |All type of messages emitted by application while working.
 data Message = EncodedDictionary Dictionary
+             | TokenizingFiles Int
              | TokenizingFile FilePath
              | TokenizedFile FilePath [ String ]
+             | TokenizedFiles [[String]]
              deriving (Show, Generic)
 
 instance ToJSON Message

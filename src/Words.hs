@@ -2,10 +2,11 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Words where
 
+import           Control.Arrow       ((***))
 import           Control.DeepSeq     (force)
 import           Control.Exception   (evaluate, finally)
 import           Control.Monad       (foldM)
-import           Data.HashMap.Strict (empty, size, size)
+import           Data.HashMap.Strict (empty, size)
 import           Log
 import           Prelude             hiding (readFile)
 import           System.IO           (IOMode (..), hClose, hGetContents,
@@ -32,10 +33,11 @@ indexFile file dict = do
 tokenizeFiles :: [String]        -- file paths
               -> IO (Dictionary, [[String]])
 tokenizeFiles files = do
-  putStrLn ("Tokenizing " ++ show (length files) ++ " files")
-  !(dictionary, rtokens) <- foldM tokenizeAndIndex (empty, []) files
-  putStrLn $ "Encoding dictionary: " ++ (show $ size dictionary)
-  return $ (encodeWords dictionary, reverse rtokens)
+  progress $ TokenizingFiles (length files)
+  !(dict, rtokens) <- (encodeWords *** reverse) <$> foldM tokenizeAndIndex (empty, []) files
+  progress $ EncodedDictionary dict
+  progress $ TokenizedFiles rtokens
+  return (dict, rtokens)
     where
       tokenizeAndIndex (dict, toks) f = do
         (dict', tokens) <- indexFile f dict
