@@ -52,7 +52,7 @@ trainFiles txts = do
 analyzeDirectory :: String -> IO Model
 analyzeDirectory dir = do
   txts <- getDirectoryContents dir >>= return.filter (isSuffixOf ".txt")
-  trainFiles txts
+  trainFiles $ map (dir </>) txts
 
 data Config = CorpusDir String
             | Verbose
