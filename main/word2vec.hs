@@ -1,8 +1,10 @@
 import           Control.Monad                             (when)
 import qualified Data.ByteString.Lazy                      as BS
-import qualified Data.ByteString.Lazy.Char8                as BS8
 import           Data.List                                 (isSuffixOf)
+import           Display
 import           Graphics.Rendering.Chart.Backend.Diagrams
+import           Log
+import           Model
 import           Prelude                                   hiding (readFile)
 import           System.Console.GetOpt
 import           System.Directory                          (doesFileExist, getDirectoryContents)
@@ -11,15 +13,7 @@ import           System.FilePath                           ((</>))
 import           System.IO                                 (BufferMode (..),
                                                             hSetBuffering,
                                                             readFile, stdout)
-
-import           Data.Aeson                                (encode)
-import           Display
-import           Log
-import           Model
 import           Words
-
-instance Progress IO where
-  progress =  BS8.putStrLn . encode
 
 trainFiles :: [String] -> IO Model
 trainFiles txts = do
