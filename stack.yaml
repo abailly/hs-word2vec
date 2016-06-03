@@ -10,4 +10,5 @@ extra-deps:
   - gamma-0.9.0.2
   - continued-fractions-0.9.1.1
   - converge-0.1.0.1
+  - optparse-generic-1.1.0
 resolver: lts-3.3

@@ -36,7 +36,7 @@ Library
                  network-uri ,
                  colour ,
                  data-default-class,
-                 unordered-containers, deepseq, vector,
+                 unordered-containers, deepseq, vector, 
                  subhask
   hs-source-dirs:     src
   exposed-modules: Display, Model, Words, Crawl, Log,
@@ -58,7 +58,7 @@ Executable words
                  bytestring ,
                  tagsoup ,
                  http-conduit ,
-                 HTTP, network-uri , network
+                 HTTP, network-uri , network,optparse-generic
   ghc-options:   -Wall -threaded -rtsopts -O3 -fprof-auto
 
 Executable crawl

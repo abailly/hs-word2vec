@@ -3,18 +3,20 @@
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 -- | Assign codes and inner layer to each word according to Huffman coding
-module Huffman(Code, unCode,
+module Huffman(Code(..), unCode,
                Bin(..),
                Coding(..),
                huffmanEncode,
                asNum) where
 
-import           Data.Aeson          hiding (encode)
-import           Data.HashMap.Strict (HashMap, empty, insert, toList)
-import qualified Data.Heap           as H
-import           Data.List           (unfoldr)
-import           Data.Maybe          (fromJust)
+import           Data.Aeson                   hiding (encode)
+import           Data.Char                    (isDigit, isSpace)
+import           Data.HashMap.Strict          (HashMap, empty, insert, toList)
+import qualified Data.Heap                    as H
+import           Data.List                    (unfoldr)
+import           Data.Maybe                   (fromJust)
 import           GHC.Generics
+import           Text.ParserCombinators.ReadP
 
 data Bin = Zero | One deriving (Eq, Ord, Show, Read)
 
@@ -52,13 +54,12 @@ instance Show Code where
       show' (One:cs)  = '1':show' cs
       show' []        = []
 
-
 instance Read Code where
   readsPrec _ s = [ readCode s [] ]
     where
       readCode ('1':cs) c = readCode cs (One : c)
       readCode ('0':cs) c = readCode cs (Zero : c)
-      readCode r        c = (Code c, r)
+      readCode r        c = (Code $ reverse c, r)
 
 data Coding = Coding {
   -- Index of word in corpus
@@ -73,7 +74,25 @@ data Coding = Coding {
   -- List of indices of path from root to word in encoding
   -- The indices are built in sucha way that most frequent words have smaller indices
   wordPoints :: [Int]
-  } deriving (Eq, Show, Read, Generic)
+  } deriving (Eq, Generic, Show)
+
+instance Read Coding where
+  readsPrec n = readP_to_S codingParser
+
+codingParser = do
+  string "Coding" >> spaces >> char '{' >> spaces
+  idx <- string "index" >> spaces >> char '=' >> spaces >> number
+  frq <- spaces >> char ',' >> spaces >> string "frequency" >> spaces >> char '=' >> spaces >> number
+  cod <- spaces >> char ',' >> spaces >> string "huffman" >> spaces >> char '=' >> spaces >> coder
+  pts <- spaces >> char ',' >> spaces >> string "wordPoints" >> spaces >> char '=' >> spaces >> points
+  spaces >> char '}'
+  return $ Coding idx frq cod pts
+    where
+      spaces = munch isSpace
+      number = read <$> munch1 isDigit
+      coder  = readS_to_P (readsPrec 9)
+      points = readS_to_P (readsPrec 8) :: ReadP [Int]
+
 
 instance ToJSON Coding
 instance FromJSON Coding

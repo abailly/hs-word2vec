@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE OverloadedStrings #-}
 import           Control.Monad                             (when)
 import qualified Data.ByteString.Lazy                      as BS
 import           Data.List                                 (isSuffixOf)
@@ -6,59 +8,41 @@ import           Graphics.Rendering.Chart.Backend.Diagrams
 import           Log
 import           Model
 import           Model.Types
+import           Options.Generic
 import           Prelude                                   hiding (readFile)
-import           System.Console.GetOpt
 import           System.Directory                          (doesFileExist, getDirectoryContents)
-import           System.Environment                        (getArgs)
 import           System.FilePath                           ((</>))
 import           System.IO                                 (BufferMode (..),
                                                             hSetBuffering,
                                                             readFile, stdout)
 import           Words
 
-trainFiles :: [String] -> IO Model
-trainFiles txts = do
+trainFiles :: Int -> [String] -> IO Model
+trainFiles numFeatures txts = do
   (dict, contents) <- tokenizeFiles txts
   progress (EncodedDictionary dict)
-  let tokens = length contents
-  trainModel tokens dict contents
+  trainModel numFeatures dict contents
 
-analyzeDirectory :: String -> IO Model
-analyzeDirectory dir = do
+analyzeDirectory :: Int -> String -> IO Model
+analyzeDirectory numFeatures dir = do
   txts <- getDirectoryContents dir >>= return.filter (isSuffixOf ".txt")
-  trainFiles $ map (dir </>) txts
+  trainFiles numFeatures $ map (dir </>) txts
 
-data Config = CorpusDir String
-            | Verbose
-            | Version
+data Config = Config { corpusDirectory  :: FilePath
+                     , verbosity        :: Bool
+                     , numberOfFeatures :: Int
+                     , selectedWords    :: [ String ]
+                     } deriving (Generic)
 
+instance ParseRecord Config
 
-options :: [OptDescr Config]
-options =
-     [ Option ['v']     ["verbose"]    (NoArg Verbose)          "chatty output on stderr"
-     , Option ['V','?'] ["version"]    (NoArg Version)          "show version number"
-     , Option ['d']     ["corpus-dir"] (ReqArg CorpusDir "DIR") "corpus directory FILE"
-
-     ]
-
-word2vecOpts :: [String] -> IO ([Config], [String])
-word2vecOpts argv =
-       case getOpt Permute options argv of
-          (o,n,[]  ) -> return (o,n)
-          (_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
-      where header = "Usage: word2vec [OPTION...] [words...]"
-
-
-corpusDir :: [Config] -> String
-corpusDir []              = "."
-corpusDir (CorpusDir d:_) = d
-corpusDir (_:configs)     = corpusDir configs
+defaultConfig :: [String] -> Config
+defaultConfig = Config "." False 100
 
 main :: IO ()
 main = do
-  args <- getArgs
-  (configs,selectedWords) <- word2vecOpts args
-  let dir = corpusDir configs
+  config <- getRecord "Word2Vec Trainer"
+  let dir = corpusDirectory config
       modelFile = (dir </> "model.vec")
       pcaFile = (dir </> "model.pca")
       diagramFile = (dir </> "model.svg")
@@ -71,11 +55,11 @@ main = do
   m <- if hasModel then
           read `fmap` readFile modelFile
        else
-         analyzeDirectory dir
+         analyzeDirectory (numberOfFeatures config) dir
 
   let p = pcaAnalysis m
       top100 = mostFrequentWords 100 m
-      chart = drawSelectedWords p (if null selectedWords then top100 else selectedWords)
+      chart = drawSelectedWords p (if null (selectedWords config) then top100 else (selectedWords config))
   when (length p /= (numberOfWords m))
     (fail $ "PCA should have same number of words than model: "++ (show $ length p) ++ "vs. " ++ (show $ numberOfWords m))
 
@@ -85,7 +69,7 @@ main = do
   progress $ WritingPCAFile pcaFile
   writeFile pcaFile (show p)
 
-  progress $ WritingDiagram diagramFile selectedWords
+  progress $ WritingDiagram diagramFile (selectedWords config)
 
   (bs, _) <- renderableToSVGString chart 1000 1000
   BS.writeFile diagramFile bs

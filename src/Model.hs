@@ -59,8 +59,8 @@ similarity m u v = do
 
 -- | Train a model using a dictionary and a list of sentences
 trainModel :: Int -> Dictionary -> [[String]] -> IO Model
-trainModel _ dict sentences = do
-  theModel <- fromDictionary dict
+trainModel numberOfFeatures dict sentences = do
+  theModel <- fromDictionary numberOfFeatures dict
   let alpha = 0.001
   progress $ StartTraining theModel
   foldM (trainSentence alpha) (0, theModel) sentences >>= return.snd
@@ -159,8 +159,8 @@ trainWord alpha ref m word = do
   return $ m { syn0 = updateLayer neu1e index' s0, syn1 = s1' }
 
 -- |Construct a model from a Dictionary
-fromDictionary :: Dictionary -> IO Model
-fromDictionary d@(Dict dict size len) = model size defaultFeatures >>= return . \ m -> m { vocabulary = d }
+fromDictionary :: Int -> Dictionary -> IO Model
+fromDictionary numberOfFeatures d@(Dict dict size len) = model size numberOfFeatures >>= return . \ m -> m { vocabulary = d }
 
 mostFrequentWords :: Int -> Model -> [ String ]
 mostFrequentWords len = take len . orderedWords . vocabulary
@@ -173,12 +173,13 @@ mostFrequentWords len = take len . orderedWords . vocabulary
 model :: Int        -- number of words
       -> Int        -- number of features (dimensions)
       -> IO Model
-model words dim = do
-  vecs <- mapM (const $ randomVector dim) [0..words-1]
-  let s0 = I.fromList (zip [0..words-1] vecs)
-  let nulls = map (const $ R.fromListUnboxed (Z :. dim) (replicate dim 0)) [0..words-1]
-  let s1 = I.fromList (zip [0..words-1] nulls)
-  return $ Model words dim s0 s1 emptyDictionary defaultWindow
+model numWords dim = do
+  let wordsIndex = [0..numWords-1]
+  vecs <- mapM (const $ randomVector dim) wordsIndex
+  let s0 = I.fromList (zip wordsIndex vecs)
+  let nulls = map (const $ R.fromListUnboxed (Z :. dim) (replicate dim 0)) wordsIndex
+  let s1 = I.fromList (zip wordsIndex nulls)
+  return $ Model numWords dim s0 s1 emptyDictionary defaultWindow
 
 -- |Initialize a vector with random values.
 --
