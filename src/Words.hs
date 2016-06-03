@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Words where
 
+import           Control.Exception   (finally)
 import           Control.Monad       (foldM)
 import           Data.Char           (toLower)
 import           Data.HashMap.Strict (HashMap, elems, empty, insertWith, size,
@@ -58,11 +59,13 @@ tokenizeFiles files = do
     where
       indexFile dict f = do
         h <- openFile f ReadMode
-        (do
+        s <- (do
             putStrLn ("Tokenizing " ++ f)
             hSetEncoding h utf8
             s <- hGetContents h
-            putStrLn $ "read " ++ show (length s) ++ " chars from " ++ f)
+            putStrLn $ "read " ++ show (length s) ++ " chars from " ++ f
+            return s
+          )
           `finally` hClose h
 
         let dict' = s `seq` (indexString dict s)
