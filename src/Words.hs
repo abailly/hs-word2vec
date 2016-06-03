@@ -1,14 +1,17 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns  #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Words where
 
 import           Control.Exception   (finally)
 import           Control.Monad       (foldM)
+import           Data.Aeson          (FromJSON, ToJSON)
 import           Data.Char           (toLower)
 import           Data.HashMap.Strict (HashMap, elems, empty, insertWith, size,
                                       size, toList)
 import           Data.List           (intersperse, sortBy)
 import           Data.Ord            (comparing)
 import           Debug.Trace
+import           GHC.Generics
 import           Huffman
 import           NLP.Tokenize        (tokenize)
 import           Prelude             hiding (readFile)
@@ -19,7 +22,10 @@ import           Text.Regex.TDFA     ((=~))
 data Dictionary = Dict {
   dictionary       :: HashMap String Coding,
   dictionaryLength :: Int,
-  encodingLength   :: Int } deriving (Eq, Show, Read)
+  encodingLength   :: Int } deriving (Eq, Show, Read, Generic)
+
+instance ToJSON Dictionary
+instance FromJSON Dictionary
 
 emptyDictionary :: Dictionary
 emptyDictionary = Dict empty 0 0

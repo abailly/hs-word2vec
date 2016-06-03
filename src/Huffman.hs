@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -7,14 +8,24 @@ module Huffman(Code, unCode,
                Coding(..),
                huffmanEncode,
                asNum) where
+
+import           Data.Aeson          hiding (encode)
 import           Data.HashMap.Strict (HashMap, empty, insert, toList)
 import qualified Data.Heap           as H
 import           Data.List           (unfoldr)
 import           Data.Maybe          (fromJust)
+import           GHC.Generics
 
 data Bin = Zero | One deriving (Eq, Ord, Show, Read)
 
 newtype Code = Code { unCode :: [Bin] }  deriving (Eq)
+
+instance ToJSON Code where
+  toJSON code = Number $ fromIntegral $ fromEnum code
+
+instance FromJSON Code where
+  parseJSON (Number n) = return $ toEnum $ truncate n
+  parseJSON e          = error $ "failed to JSON " ++ show e ++ " as Code instance"
 
 asNum :: (Num a ) => Bin -> a
 asNum Zero = 0
@@ -62,7 +73,10 @@ data Coding = Coding {
   -- List of indices of path from root to word in encoding
   -- The indices are built in sucha way that most frequent words have smaller indices
   wordPoints :: [Int]
-  } deriving (Eq, Show, Read)
+  } deriving (Eq, Show, Read, Generic)
+
+instance ToJSON Coding
+instance FromJSON Coding
 
 huffmanEncode :: HashMap String Int -> HashMap String Coding
 huffmanEncode = encode . arborify . heapify

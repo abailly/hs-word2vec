@@ -9,7 +9,7 @@ Maintainer:           Arnaud Bailly <arnaud.oqube@gmail.com>
 Cabal-version:        >= 1.20
 
 Library
-  Build-Depends: base,
+  Build-Depends: base, mtl, aeson,
                  hmatrix ,
                  hmatrix-nipals ,
                  heap ,
@@ -39,7 +39,7 @@ Library
                  unordered-containers,
                  subhask
   hs-source-dirs:     src
-  exposed-modules: Display, Model, Words, Crawl
+  exposed-modules: Display, Model, Words, Crawl, Log
   other-modules: Concurrent, Huffman, Window
   ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision -fprof-auto
 
@@ -49,9 +49,9 @@ Executable words
   default-language: Haskell2010
   build-depends: word2vec,
                  directory ,
-                 Chart ,
+                 Chart , aeson,
                  Chart-diagrams ,
-                 base,
+                 base, mtl,
                  unix ,
                  filepath ,
                  bytestring ,
@@ -63,7 +63,7 @@ Executable words
 Executable crawl
   default-language: Haskell2010
   Build-Depends: word2vec,
-                 base,
+                 base, mtl,
                  process ,
                  unix ,
                  filepath ,
