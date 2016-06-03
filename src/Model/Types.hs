@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 -- | Interface and core types describing a training model
@@ -9,6 +10,7 @@ import           Data.Array.Repa  ((:.) (..), Array, DIM1, U, Z (..), computeP,
                                    sumP, toList, toUnboxed, (!), (*^), (+^))
 import qualified Data.IntMap      as I
 import qualified Data.Vector      as V
+import           GHC.Generics
 import           Words.Dictionary
 
 -- | Used for vector computations
@@ -54,7 +56,9 @@ data Model = Model {
 
   -- Size of training window
   window        :: Int
-  } deriving (Show, Read)
+  } deriving (Show, Read, Generic)
+
+instance J.ToJSON Model
 
 defaultWindow :: Int
 defaultWindow = 10

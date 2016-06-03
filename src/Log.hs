@@ -11,10 +11,10 @@ module Log where
 import           Control.Monad.Trans        (MonadIO)
 import           Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as BS8
+import           Data.Time.Clock
 import           GHC.Generics
 import           Model.Types
 import           Words.Dictionary
-
 
 -- |All type of messages emitted by application while working.
 data Message = AnalyzingDirectory FilePath
@@ -27,10 +27,23 @@ data Message = AnalyzingDirectory FilePath
              | WritingPCAFile FilePath
              | WritingDiagram FilePath [ String ]
                -- Training
+             | StartTraining Model
+             | TrainingSentence Int Int
              | TrainWord String String
-             | InitialLayer Vector
+             | TrainingWindow Double String [String]
+             | InitialWordVector Int Vector
+             | BeforeUpdate Int Vector
+             | DotProduct Double
+             | ErrorGradient Double
+             | InputLayerAfterGradient Vector
+             | HiddenLayerAfterGradient Vector
+             | UpdatedWordVector Int Vector
+             | TrainedSentence NominalDiffTime
              | Done
              deriving (Show, Generic)
+
+instance ToJSON NominalDiffTime where
+  toJSON dt = toJSON $ (realToFrac dt :: Double)
 
 instance ToJSON Message
 

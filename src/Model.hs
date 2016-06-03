@@ -4,7 +4,7 @@
 -- |Neural network based model of words similarity
 module Model where
 
-import           Control.Monad       (foldM, liftM2)
+import           Control.Monad       (foldM)
 import           Data.Array.Repa     ((:.) (..), All (..), Any (..), Array,
                                       DIM1, DIM2, U, Z (..), computeP, foldP,
                                       fromListUnboxed, ix1, ix2, slice, sumP,
@@ -62,7 +62,7 @@ trainModel :: Int -> Dictionary -> [[String]] -> IO Model
 trainModel _ dict sentences = do
   theModel <- fromDictionary dict
   let alpha = 0.001
-  putStrLn $ "Start training model " ++ (show (numberOfWords theModel, modelSize theModel))
+  progress $ StartTraining theModel
   foldM (trainSentence alpha) (0, theModel) sentences >>= return.snd
 
 
@@ -82,11 +82,11 @@ trainSentence :: Double
 trainSentence alpha (count,!m) sentence = do
   let len = length sentence
   start <- getCurrentTime
-  putStrLn $ "Training " ++ (show len) ++ "/" ++ (show count) ++ " words"
+  progress $ TrainingSentence count len
   g <- getStdGen
   m'<- foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
   end <- getCurrentTime
-  putStrLn $ " in " ++ (show $ diffUTCTime end start)
+  progress $ TrainedSentence (diffUTCTime end start)
   return (count + len,m')
 
 
@@ -94,7 +94,7 @@ trainWindow :: Double            -- alpha threshold
           -> Model               -- model to train
           -> (String,[String])   -- prefix, word, suffix to select window around word
           -> IO Model            -- updated model
-trainWindow alpha !m (w, ws) = debug ("training window " ++ show (w,ws)) >>
+trainWindow alpha !m (w, ws) = progress (TrainingWindow alpha w ws) >>
                                foldM (trainWord alpha w) m (filter (/= w) ws)
 
 -- |Update a single row of a matrix with a vector at given index.
@@ -126,35 +126,34 @@ trainWord alpha ref m word = do
 
       l0 = s0 I.! index'
 
-  progress $ InitialLayer neu1eInitial
-  debug $ "layer 0 " ++ show l0
-  -- update a single point
+  progress $ InitialWordVector index' l0
 
+  -- update a single point
   let updatePoint :: (Array U DIM1 Double, Layer) ->
                      (Int, Bin) ->
                      IO (Array U DIM1 Double, Layer)
       updatePoint (neu1e,s1) (p,b) = do
         -- dot product of two vectors
         let l1 = s1 I.! p
-        debug $ "layer 1 " ++ show l1
+        progress $ BeforeUpdate p l1
         f <- sumP (l0 *^ l1)
-        debug $ "dot product f " ++ show f
+        progress $ DotProduct (R.linearIndex f 0)
         let exp_f = exp (f ! Z)
         -- compute gradient
         let g = (1 - asNum b - exp_f) * alpha
-        debug $ "gradient g " ++ show g
+        progress $ ErrorGradient g
         -- apply gradient on input layer
         neu1e' <- computeP $ (R.map (*g) l1) +^ neu1e
-        debug $ "applied gradient to input layer neu1e' " ++ show neu1e'
+        progress $ InputLayerAfterGradient neu1e'
         -- apply gradient on hidden layer
         l1' <- computeP $ (R.map (*g) l0) +^ l1
-        debug $ "applied gradient to hidden layer l1' " ++ show l1'
+        progress $ HiddenLayerAfterGradient l1'
         return (neu1e',updateLayer l1' p s1)
 
 
   (neu1e, s1')  <- foldM updatePoint (neu1eInitial, syn1 m) (zip points $ unCode huff)
 
-  debug $ "updated neu1e " ++ show neu1e
+  progress $ UpdatedWordVector index' neu1e
 
   -- report computed gradient to input layer
   return $ m { syn0 = updateLayer neu1e index' s0, syn1 = s1' }
