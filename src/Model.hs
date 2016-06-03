@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 -- |Neural network based model of words similarity
 module Model where
+
 import           Control.Monad       (foldM, liftM2)
 import           Data.Array.Repa     ((:.) (..), All (..), Any (..), Array,
                                       DIM1, DIM2, U, Z (..), computeP, foldP,
@@ -13,59 +14,15 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.IntMap         as I
 import           Data.Time.Clock     (diffUTCTime, getCurrentTime)
 import           Huffman
+import           Log
+import           Model.Types
 import           System.Random       (RandomGen, getStdGen, random)
 import           Window
 import           Words.Dictionary
 
--- | Used for vector computations
-type Vector = (Array U DIM1 Double)
-
--- | More efficient to update part of a map than a complete matrix
-type Layer = I.IntMap Vector
-
-data Model = Model {
-  -- Number of words in the model
-  numberOfWords :: Int,
-
-  -- Size of the model or number of dimensions each word is mapped to
-  -- also called number of features
-  modelSize     :: Int,
-
-  -- The input -> hidden connection matrix
-  -- input layer has size equal to number of words in vocabulary, with each
-  -- cell connected to a number of hidden cells equal to the 'dimension' of the model
-  -- eg, the number of features we want to track defaulting to 100
-  --
-  -- syn0 is the original name in C word2vec implementation
-  syn0          :: !Layer,
-
-  -- The hidden -> output connection matrix
-  -- It has the same geometry as the input layer.
-  -- syn1 is the original name in C word2vec implementation
-  syn1          :: !Layer,
-
-  -- The dictionary
-  -- Each word is mapped to a Coding structure containing, among other things,
-  -- the Huffman encoding of the word and references to inner nodes this word is connected to
-  -- contains also number of words and maximal length of coding vectors
-  vocabulary    :: !Dictionary,
-
-  -- Size of training window
-  window        :: Int
-  } deriving (Show, Read)
-
-defaultWindow :: Int
-defaultWindow = 10
-
-defaultFeatures :: Int
-defaultFeatures = 100
 
 debug :: String -> IO ()
 debug _  = return ()
-
--- | Output a layer (matrix) as a list of doubles concatenating all rows
-layerToList :: Layer -> [Double]
-layerToList = concat . map R.toList . I.elems
 
 -- | Raw coefficients of given word
 --
@@ -154,21 +111,22 @@ trainWord :: Double    -- alpha threshold
           -> String    -- word to learn
           -> IO Model
 trainWord alpha ref m word = do
-  debug $ "train word " ++ word ++ " against " ++ ref
+  progress $ TrainWord word ref
+
   let h = dictionary $ vocabulary m
-  let Just (Coding _ _ huff points) = M.lookup ref h
-  let Just (Coding index' _ _ _) = M.lookup word h
-  let layerSize = modelSize m
-  let vocabSize = numberOfWords m
-  let layerIndices = [0..layerSize -1]
+      Just (Coding _ _ huff points) = M.lookup ref h
+      Just (Coding index' _ _ _) = M.lookup word h
+      layerSize = modelSize m
+      vocabSize = numberOfWords m
+      layerIndices = [0..layerSize -1]
 
-  let s0 = syn0 m
+      s0 = syn0 m
 
-  let neu1eInitial = fromListUnboxed (ix1 layerSize) (replicate layerSize 0)
-  debug $ "neu1e initial " ++ show neu1eInitial
+      neu1eInitial = fromListUnboxed (ix1 layerSize) (replicate layerSize 0)
 
-  let l0 = s0 I.! index'
+      l0 = s0 I.! index'
 
+  progress $ InitialLayer neu1eInitial
   debug $ "layer 0 " ++ show l0
   -- update a single point
 

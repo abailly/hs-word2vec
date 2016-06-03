@@ -5,6 +5,7 @@ import           Display
 import           Graphics.Rendering.Chart.Backend.Diagrams
 import           Log
 import           Model
+import           Model.Types
 import           Prelude                                   hiding (readFile)
 import           System.Console.GetOpt
 import           System.Directory                          (doesFileExist, getDirectoryContents)

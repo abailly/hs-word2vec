@@ -16,7 +16,7 @@ import           Data.Colour
 import           Data.Colour.Names
 import           Data.Default.Class
 import           Graphics.Rendering.Chart
-import           Model
+import           Model.Types
 import qualified Numeric.LinearAlgebra.NIPALS as P
 import           Words.Dictionary
 

@@ -36,11 +36,11 @@ Library
                  network-uri ,
                  colour ,
                  data-default-class,
-                 unordered-containers, deepseq,
+                 unordered-containers, deepseq, vector,
                  subhask
   hs-source-dirs:     src
   exposed-modules: Display, Model, Words, Crawl, Log,
-                   Words.Dictionary
+                   Words.Dictionary, Model.Types
   other-modules: Concurrent, Huffman, Window
   ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision -fprof-auto
 
