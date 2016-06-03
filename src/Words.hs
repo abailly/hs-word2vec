@@ -44,7 +44,7 @@ indexString dict s = foldl indexWord dict $  tokenizeString s
 
 encodeWords :: HashMap String Int -> Dictionary
 encodeWords dictionary = let encoding = huffmanEncode $ dictionary
-                             encodingLength = maximum (map (length . huffman) $ elems encoding)
+                             encodingLength = maximum (map (length . unCode . huffman) $ elems encoding)
                          in Dict encoding (size encoding) encodingLength
 
 -- |Encode the words of several files into a dictionary

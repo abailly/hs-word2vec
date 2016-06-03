@@ -4,20 +4,16 @@
 -- |Neural network based model of words similarity
 module Model where
 import           Control.Monad       (foldM, liftM2)
-import qualified Data.HashMap.Strict as M
-import           Data.Time.Clock     (diffUTCTime, getCurrentTime)
-import           System.Random       (RandomGen, getStdGen, random)
-
-import qualified Data.Array.IO       as A
-
 import           Data.Array.Repa     ((:.) (..), All (..), Any (..), Array,
                                       DIM1, DIM2, U, Z (..), computeP, foldP,
                                       fromListUnboxed, ix1, ix2, slice, sumP,
                                       (!), (*^), (+^))
-
 import qualified Data.Array.Repa     as R
+import qualified Data.HashMap.Strict as M
 import qualified Data.IntMap         as I
+import           Data.Time.Clock     (diffUTCTime, getCurrentTime)
 import           Huffman
+import           System.Random       (RandomGen, getStdGen, random)
 import           Window
 import           Words
 
@@ -198,7 +194,7 @@ trainWord alpha ref m word = do
         return (neu1e',updateLayer l1' p s1)
 
 
-  (neu1e, s1')  <- foldM updatePoint (neu1eInitial, syn1 m) (zip points huff)
+  (neu1e, s1')  <- foldM updatePoint (neu1eInitial, syn1 m) (zip points $ unCode huff)
 
   debug $ "updated neu1e " ++ show neu1e
 

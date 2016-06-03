@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 -- | Assign codes and inner layer to each word according to Huffman coding
-module Huffman(Code,
+module Huffman(Code, unCode,
                Bin(..),
                Coding(..),
                huffmanEncode,
@@ -14,7 +14,7 @@ import           Data.Maybe          (fromJust)
 
 data Bin = Zero | One deriving (Eq, Ord, Show, Read)
 
-newtype Code = Code [Bin] deriving (Eq)
+newtype Code = Code { unCode :: [Bin] }  deriving (Eq)
 
 asNum :: (Num a ) => Bin -> a
 asNum Zero = 0
