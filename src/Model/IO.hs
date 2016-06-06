@@ -12,7 +12,7 @@ import           Words
 trainFiles :: (Progress m) => Int -> [String] -> m Model
 trainFiles numFeatures txts = do
   (dict, contents) <- tokenizeFiles txts
-  progress (EncodedDictionary dict)
+  progress Fine (EncodedDictionary dict)
   trainModel numFeatures dict contents
 
 analyzeDirectory :: (Progress m) => Int -> String -> m Model

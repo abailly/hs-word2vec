@@ -60,7 +60,7 @@ trainModel :: (Progress m) => Int -> Dictionary -> [[String]] -> m Model
 trainModel numberOfFeatures dict sentences = do
   theModel <- fromDictionary numberOfFeatures dict
   let alpha = 0.001
-  progress $ StartTraining theModel
+  progress Middle $ StartTraining theModel
   foldM (trainSentence alpha) (0, theModel) sentences >>= return.snd
 
 
@@ -81,11 +81,11 @@ trainSentence :: (Progress m)
 trainSentence alpha (count,!m) sentence = do
   let len = length sentence
   start <- liftIO getCurrentTime
-  progress $ TrainingSentence count len
+  progress Fine $ TrainingSentence count len
   g <- liftIO getStdGen
   m'<- foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
   end <- liftIO getCurrentTime
-  progress $ TrainedSentence (diffUTCTime end start)
+  progress Fine $ TrainedSentence (diffUTCTime end start)
   return (count + len,m')
 
 
@@ -94,7 +94,7 @@ trainWindow :: (Progress m)
                -> Model               -- model to train
                -> (String,[String])   -- prefix, word, suffix to select window around word
                -> m Model            -- updated model
-trainWindow alpha !m (w, ws) = progress (TrainingWindow alpha w ws) >>
+trainWindow alpha !m (w, ws) = progress Fine (TrainingWindow alpha w ws) >>
                                foldM (trainWord alpha w) m (filter (/= w) ws)
 
 -- |Update a single row of a matrix with a vector at given index.
@@ -112,7 +112,7 @@ trainWord :: (Progress m)
              -> String    -- word to learn
              -> m Model
 trainWord alpha ref m word = do
-  progress $ TrainWord word ref
+  progress Fine $ TrainWord word ref
 
   let h = dictionary $ vocabulary m
       Just (Coding _ _ huff points) = M.lookup ref h
@@ -125,7 +125,7 @@ trainWord alpha ref m word = do
 
       l0 = s0 I.! index'
 
-  progress $ InitialWordVector index' l0
+  progress Fine $ InitialWordVector index' l0
 
   -- update a single point
   let updatePoint :: (Progress m)
@@ -135,25 +135,25 @@ trainWord alpha ref m word = do
       updatePoint (neu1e,s1) (p,b) = do
         -- dot product of two vectors
         let l1 = s1 I.! p
-        progress $ BeforeUpdate p l1
+        progress Fine $ BeforeUpdate p l1
         f <- sumP (l0 *^ l1)
-        progress $ DotProduct (R.linearIndex f 0)
+        progress Fine $ DotProduct (R.linearIndex f 0)
         let exp_f = exp (f ! Z)
         -- compute gradient
         let g = (1 - asNum b - exp_f) * alpha
-        progress $ ErrorGradient g
+        progress Fine $ ErrorGradient g
         -- apply gradient on input layer
         neu1e' <- computeP $ (R.map (*g) l1) +^ neu1e
-        progress $ InputLayerAfterGradient neu1e'
+        progress Fine $ InputLayerAfterGradient neu1e'
         -- apply gradient on hidden layer
         l1' <- computeP $ (R.map (*g) l0) +^ l1
-        progress $ HiddenLayerAfterGradient l1'
+        progress Fine $ HiddenLayerAfterGradient l1'
         return (neu1e',updateLayer l1' p s1)
 
 
   (neu1e, s1')  <- foldM updatePoint (neu1eInitial, syn1 m) (zip points $ unCode huff)
 
-  progress $ UpdatedWordVector index' neu1e
+  progress Fine $ UpdatedWordVector index' neu1e
 
   -- report computed gradient to input layer
   return $ m { syn0 = updateLayer neu1e index' s0, syn1 = s1' }

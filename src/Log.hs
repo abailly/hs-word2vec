@@ -43,5 +43,10 @@ data Message = AnalyzingDirectory FilePath
 
 instance ToJSON Message
 
+data Level = Coarse
+           | Middle
+           | Fine
+           deriving (Eq, Show, Read, Enum)
+
 class (MonadIO io) => Progress io where
-  progress :: Message -> io ()
+  progress :: Level -> Message -> io ()

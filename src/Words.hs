@@ -16,7 +16,7 @@ import           Words.Dictionary
 indexFile :: (Progress m) => FilePath -> Index -> m (Index, [String])
 indexFile file dict = do
   h <- liftIO $ openFile file ReadMode
-  progress (TokenizingFile file)
+  progress Middle (TokenizingFile file)
   s <- liftIO $ (do hSetEncoding h utf8
                     s <- hGetContents h
                     evaluate $ force s
@@ -24,7 +24,7 @@ indexFile file dict = do
 
   let tokens = tokenizeString s
       dict' = s `seq` indexString dict tokens
-  progress (TokenizedFile file tokens)
+  progress Middle (TokenizedFile file tokens)
   return  (dict', tokens)
 
 
@@ -33,10 +33,10 @@ tokenizeFiles :: (Progress m)
                  => [String]        -- file paths
                  -> m (Dictionary, [[String]])
 tokenizeFiles files = do
-  progress $ TokenizingFiles (length files)
+  progress Middle $ TokenizingFiles (length files)
   !(dict, rtokens) <- (encodeWords *** reverse) <$> foldM tokenizeAndIndex (empty, []) files
-  progress $ EncodedDictionary dict
-  progress $ TokenizedFiles rtokens
+  progress Middle $ EncodedDictionary dict
+  progress Middle $ TokenizedFiles rtokens
   return (dict, rtokens)
     where
       tokenizeAndIndex (dict, toks) f = do

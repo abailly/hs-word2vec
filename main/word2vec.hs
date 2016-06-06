@@ -1,11 +1,16 @@
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE ViewPatterns               #-}
 
 import           Control.Monad                             (when)
 import           Control.Monad.Reader
-import           Control.Monad.Trans                       (MonadIO, liftIO)
+import           Control.Monad.Trans                       (MonadIO, lift,
+                                                            liftIO)
 import           Data.Aeson
 import qualified Data.ByteString.Lazy                      as BS
 import qualified Data.ByteString.Lazy.Char8                as BS8
@@ -24,16 +29,30 @@ import           System.IO                                 (BufferMode (..),
                                                             hSetBuffering,
                                                             readFile, stdout)
 
-instance Progress IO where
-  progress =  BS8.putStrLn . encode
+instance Progress (ReaderT Int IO) where
+  progress lvl m =  do
+    logLevel <- ask
+    when (fromEnum lvl <= logLevel) $ liftIO (BS8.putStrLn $ encode m)
 
-newtype Step m a = Step { runStep :: ReaderT Int m a }
-                 deriving (Functor, Applicative, Monad,MonadIO)
+newtype Step m a = Step { runStep :: m a }
+                 deriving (Functor, Applicative, Monad, MonadIO)
 
-instance (MonadIO m) => Progress (Step m) where
-  progress m = Step $ liftIO $ do
-     BS8.putStrLn $ encode m
-     void getLine
+instance MonadTrans Step  where
+  lift = Step
+
+mapStep :: (m a -> m b) -> Step m a -> Step m b
+mapStep f (Step m) = Step $ f m
+
+instance (MonadReader a m) => MonadReader a (Step m) where
+  reader = lift . reader
+  local = mapStep . local
+
+instance (MonadIO m, MonadReader Int m) => Progress (Step m) where
+  progress lvl m = Step $ do
+    logLevel <- ask
+    when (fromEnum lvl <= logLevel) $ liftIO $ do
+      BS8.putStrLn $ encode m
+      void getLine
 
 data Config = Config { corpusDirectory  :: FilePath
                      , verbosity        :: Int
@@ -47,28 +66,31 @@ instance ParseRecord Config
 defaultConfig :: [String] -> Config
 defaultConfig = Config "." 0 False 100
 
-runAnalysis :: Config -> IO Model
-runAnalysis c@(stepByStep -> False) = analyzeDirectory (numberOfFeatures c) (corpusDirectory c)
-runAnalysis c@(stepByStep -> True)  = runReaderT (runStep $ analyzeDirectory (numberOfFeatures c) (corpusDirectory c)) 0
-
 main :: IO ()
 main = do
   config <- getRecord "Word2Vec Trainer"
+  go config
 
+go :: Config -> IO ()
+go c@(stepByStep -> False) = runReaderT (runAnalysis c)           (verbosity c)
+go c@(stepByStep -> True)  = runReaderT (runStep $ runAnalysis c) (verbosity c)
+
+runAnalysis :: (MonadIO m, MonadReader Int m, Progress m) => Config -> m ()
+runAnalysis config = do
   let dir         = corpusDirectory config
       modelFile   = dir </> "model.vec"
       pcaFile     = dir </> "model.pca"
       diagramFile = dir </> "model.svg"
 
-  progress $ AnalyzingDirectory dir
-  hSetBuffering stdout NoBuffering
+  progress Coarse $ AnalyzingDirectory dir
+  liftIO $ hSetBuffering stdout NoBuffering
 
-  hasModel <- doesFileExist modelFile
+  hasModel <- liftIO $ doesFileExist modelFile
 
   m <- if hasModel then
-          read `fmap` readFile modelFile
+          read `fmap` liftIO (readFile modelFile)
        else
-         runAnalysis config
+         analyzeDirectory (numberOfFeatures config) (corpusDirectory config)
 
   let p = pcaAnalysis m
       top100 = mostFrequentWords 100 m
@@ -76,17 +98,17 @@ main = do
   when (length p /= numberOfWords m)
     (fail $ "PCA should have same number of words than model: "++ show (length p) ++ "vs. " ++ show (numberOfWords m))
 
-  progress $ WritingModelFile modelFile
-  writeFile modelFile (show m)
+  progress Coarse $ WritingModelFile modelFile
+  liftIO $ writeFile modelFile (show m)
 
-  progress $ WritingPCAFile pcaFile
-  writeFile pcaFile (show p)
+  progress Coarse $ WritingPCAFile pcaFile
+  liftIO $ writeFile pcaFile (show p)
 
-  progress $ WritingDiagram diagramFile (selectedWords config)
+  progress Coarse $ WritingDiagram diagramFile (selectedWords config)
 
-  (bs, _) <- renderableToSVGString chart 1000 1000
-  BS.writeFile diagramFile bs
+  (bs, _) <- liftIO $ renderableToSVGString chart 1000 1000
+  liftIO $ BS.writeFile diagramFile bs
 
-  progress Done
+  progress Coarse Done
 
 
