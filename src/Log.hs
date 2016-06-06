@@ -41,9 +41,6 @@ data Message = AnalyzingDirectory FilePath
              | Done
              deriving (Show, Generic)
 
-instance ToJSON NominalDiffTime where
-  toJSON dt = toJSON $ (realToFrac dt :: Double)
-
 instance ToJSON Message
 
 class (MonadIO io) => Progress io where

@@ -27,3 +27,9 @@ pca n dataSet = (encode,decode)
     (_,v) = eigSH (trustSym c)
     vp = tr $ takeColumns n v
 
+-- | Return a function that yields the PCA vector for some index of given matrix
+pca' :: Int -> Mat -> (Int -> [Double])
+pca' n dataSet = toList . enc . (mat' !!)
+  where
+    mat' = toRows dataSet
+    (enc,_) = pca n dataSet

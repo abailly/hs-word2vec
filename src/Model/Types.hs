@@ -19,11 +19,6 @@ type Vector = Array U DIM1 Double
 -- | More efficient to update part of a map than a complete matrix
 type Layer = I.IntMap Vector
 
-instance J.ToJSON Layer where
-  toJSON layer = J.Array $ V.map (J.Array . V.fromList . map (J.toJSON)) $ asMatrix layer
-    where
-      asMatrix layer = V.fromList $ map toList (I.elems layer)
-
 instance J.ToJSON Vector where
   toJSON v = J.Array $ V.fromList $ map (J.toJSON) $ toList v
 
