@@ -11,7 +11,6 @@ Cabal-version:        >= 1.20
 Library
   Build-Depends: base, mtl, aeson,
                  hmatrix ,
-                 hmatrix-nipals ,
                  heap ,
                  utf8-string ,
                  containers ,
@@ -36,8 +35,7 @@ Library
                  network-uri ,
                  colour ,
                  data-default-class,
-                 unordered-containers, deepseq, vector, 
-                 subhask
+                 unordered-containers, deepseq, vector
   hs-source-dirs:     src
   exposed-modules: Display, Model, Words, Crawl, Log,
                    Words.Dictionary, Model.Types, Model.IO
