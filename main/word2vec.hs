@@ -4,9 +4,11 @@
 {-# LANGUAGE ViewPatterns               #-}
 
 import           Control.Monad                             (when)
+import           Control.Monad.Trans                       (MonadIO, liftIO)
 import           Data.Aeson
 import qualified Data.ByteString.Lazy                      as BS
 import qualified Data.ByteString.Lazy.Char8                as BS8
+import           Data.Functor                              (void)
 import           Display
 import           Graphics.Rendering.Chart.Backend.Diagrams
 import           Log
@@ -24,6 +26,15 @@ import           System.IO                                 (BufferMode (..),
 instance Progress IO where
   progress =  BS8.putStrLn . encode
 
+newtype Step m a = Step { runStep :: m a }
+                 deriving (Functor, Applicative, Monad,MonadIO)
+
+instance (MonadIO m) => Progress (Step m) where
+  progress m = Step $ liftIO $ do
+     BS8.putStrLn $ encode m
+     void getLine
+
+
 data Config = Config { corpusDirectory  :: FilePath
                      , verbosity        :: Bool
                      , stepByStep       :: Bool
@@ -38,7 +49,7 @@ defaultConfig = Config "." False False 100
 
 runAnalysis :: Config -> IO Model
 runAnalysis c@(stepByStep -> False) = analyzeDirectory (numberOfFeatures c) (corpusDirectory c)
-runAnalysis c@(stepByStep -> True)  = analyzeDirectory (numberOfFeatures c) (corpusDirectory c)
+runAnalysis c@(stepByStep -> True)  = runStep $ analyzeDirectory (numberOfFeatures c) (corpusDirectory c)
 
 main :: IO ()
 main = do
