@@ -38,7 +38,7 @@ Library
                  unordered-containers, deepseq, vector
   hs-source-dirs:     src
   exposed-modules: Display, Model, Words, Crawl, Log,
-                   Words.Dictionary, Model.Types, Model.IO
+                   Words.Dictionary, Model.Types, Model.IO, PCA
   other-modules: Concurrent, Huffman, Window
   ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision -fprof-auto
 
@@ -80,4 +80,4 @@ Test-Suite word2vec-test
   type:          exitcode-stdio-1.0
   hs-source-dirs:     test
   main-is:       word2vec-test.hs
-  build-depends: base, doctest, word2vec
+  build-depends: base, doctest, hspec, hmatrix, word2vec
