@@ -4,6 +4,7 @@
 {-# LANGUAGE ViewPatterns               #-}
 
 import           Control.Monad                             (when)
+import           Control.Monad.Reader
 import           Control.Monad.Trans                       (MonadIO, liftIO)
 import           Data.Aeson
 import qualified Data.ByteString.Lazy                      as BS
@@ -26,7 +27,7 @@ import           System.IO                                 (BufferMode (..),
 instance Progress IO where
   progress =  BS8.putStrLn . encode
 
-newtype Step m a = Step { runStep :: m a }
+newtype Step m a = Step { runStep :: ReaderT Int m a }
                  deriving (Functor, Applicative, Monad,MonadIO)
 
 instance (MonadIO m) => Progress (Step m) where
@@ -34,9 +35,8 @@ instance (MonadIO m) => Progress (Step m) where
      BS8.putStrLn $ encode m
      void getLine
 
-
 data Config = Config { corpusDirectory  :: FilePath
-                     , verbosity        :: Bool
+                     , verbosity        :: Int
                      , stepByStep       :: Bool
                      , numberOfFeatures :: Int
                      , selectedWords    :: [ String ]
@@ -45,19 +45,20 @@ data Config = Config { corpusDirectory  :: FilePath
 instance ParseRecord Config
 
 defaultConfig :: [String] -> Config
-defaultConfig = Config "." False False 100
+defaultConfig = Config "." 0 False 100
 
 runAnalysis :: Config -> IO Model
 runAnalysis c@(stepByStep -> False) = analyzeDirectory (numberOfFeatures c) (corpusDirectory c)
-runAnalysis c@(stepByStep -> True)  = runStep $ analyzeDirectory (numberOfFeatures c) (corpusDirectory c)
+runAnalysis c@(stepByStep -> True)  = runReaderT (runStep $ analyzeDirectory (numberOfFeatures c) (corpusDirectory c)) 0
 
 main :: IO ()
 main = do
   config <- getRecord "Word2Vec Trainer"
-  let dir = corpusDirectory config
-      modelFile = (dir </> "model.vec")
-      pcaFile = (dir </> "model.pca")
-      diagramFile = (dir </> "model.svg")
+
+  let dir         = corpusDirectory config
+      modelFile   = dir </> "model.vec"
+      pcaFile     = dir </> "model.pca"
+      diagramFile = dir </> "model.svg"
 
   progress $ AnalyzingDirectory dir
   hSetBuffering stdout NoBuffering
@@ -71,9 +72,9 @@ main = do
 
   let p = pcaAnalysis m
       top100 = mostFrequentWords 100 m
-      chart = drawSelectedWords p (if null (selectedWords config) then top100 else (selectedWords config))
-  when (length p /= (numberOfWords m))
-    (fail $ "PCA should have same number of words than model: "++ (show $ length p) ++ "vs. " ++ (show $ numberOfWords m))
+      chart = drawSelectedWords p (if null ( selectedWords config) then top100 else selectedWords config)
+  when (length p /= numberOfWords m)
+    (fail $ "PCA should have same number of words than model: "++ show (length p) ++ "vs. " ++ show (numberOfWords m))
 
   progress $ WritingModelFile modelFile
   writeFile modelFile (show m)
