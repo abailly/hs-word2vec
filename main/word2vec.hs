@@ -1,37 +1,28 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ViewPatterns               #-}
+
 import           Control.Monad                             (when)
 import           Data.Aeson
 import qualified Data.ByteString.Lazy                      as BS
 import qualified Data.ByteString.Lazy.Char8                as BS8
-import           Data.List                                 (isSuffixOf)
 import           Display
 import           Graphics.Rendering.Chart.Backend.Diagrams
 import           Log
 import           Model
+import           Model.IO
 import           Model.Types
 import           Options.Generic
 import           Prelude                                   hiding (readFile)
-import           System.Directory                          (doesFileExist, getDirectoryContents)
+import           System.Directory                          (doesFileExist)
 import           System.FilePath                           ((</>))
 import           System.IO                                 (BufferMode (..),
                                                             hSetBuffering,
                                                             readFile, stdout)
-import           Words
 
 instance Progress IO where
   progress =  BS8.putStrLn . encode
-
-trainFiles :: Int -> [String] -> IO Model
-trainFiles numFeatures txts = do
-  (dict, contents) <- tokenizeFiles txts
-  progress (EncodedDictionary dict)
-  trainModel numFeatures dict contents
-
-analyzeDirectory :: Int -> String -> IO Model
-analyzeDirectory numFeatures dir = do
-  txts <- getDirectoryContents dir >>= return.filter (isSuffixOf ".txt")
-  trainFiles numFeatures $ map (dir </>) txts
 
 data Config = Config { corpusDirectory  :: FilePath
                      , verbosity        :: Bool
@@ -44,6 +35,10 @@ instance ParseRecord Config
 
 defaultConfig :: [String] -> Config
 defaultConfig = Config "." False False 100
+
+runAnalysis :: Config -> IO Model
+runAnalysis c@(stepByStep -> False) = analyzeDirectory (numberOfFeatures c) (corpusDirectory c)
+runAnalysis c@(stepByStep -> True)  = analyzeDirectory (numberOfFeatures c) (corpusDirectory c)
 
 main :: IO ()
 main = do
@@ -61,7 +56,7 @@ main = do
   m <- if hasModel then
           read `fmap` readFile modelFile
        else
-         analyzeDirectory (numberOfFeatures config) dir
+         runAnalysis config
 
   let p = pcaAnalysis m
       top100 = mostFrequentWords 100 m

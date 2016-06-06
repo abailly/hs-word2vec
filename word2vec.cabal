@@ -40,7 +40,7 @@ Library
                  subhask
   hs-source-dirs:     src
   exposed-modules: Display, Model, Words, Crawl, Log,
-                   Words.Dictionary, Model.Types
+                   Words.Dictionary, Model.Types, Model.IO
   other-modules: Concurrent, Huffman, Window
   ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision -fprof-auto
 
