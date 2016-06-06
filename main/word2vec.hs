@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Monad                             (when)
+import           Data.Aeson
 import qualified Data.ByteString.Lazy                      as BS
+import qualified Data.ByteString.Lazy.Char8                as BS8
 import           Data.List                                 (isSuffixOf)
 import           Display
 import           Graphics.Rendering.Chart.Backend.Diagrams
@@ -17,6 +19,9 @@ import           System.IO                                 (BufferMode (..),
                                                             readFile, stdout)
 import           Words
 
+instance Progress IO where
+  progress =  BS8.putStrLn . encode
+
 trainFiles :: Int -> [String] -> IO Model
 trainFiles numFeatures txts = do
   (dict, contents) <- tokenizeFiles txts
@@ -30,6 +35,7 @@ analyzeDirectory numFeatures dir = do
 
 data Config = Config { corpusDirectory  :: FilePath
                      , verbosity        :: Bool
+                     , stepByStep       :: Bool
                      , numberOfFeatures :: Int
                      , selectedWords    :: [ String ]
                      } deriving (Generic)
@@ -37,7 +43,7 @@ data Config = Config { corpusDirectory  :: FilePath
 instance ParseRecord Config
 
 defaultConfig :: [String] -> Config
-defaultConfig = Config "." False 100
+defaultConfig = Config "." False False 100
 
 main :: IO ()
 main = do
@@ -74,6 +80,6 @@ main = do
   (bs, _) <- renderableToSVGString chart 1000 1000
   BS.writeFile diagramFile bs
 
-  progress $ Done
+  progress Done
 
 

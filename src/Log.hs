@@ -8,9 +8,8 @@
 -- publishing those messages using any underlying `MonadIO` instance.
 module Log where
 
-import           Control.Monad.Trans        (MonadIO)
+import           Control.Monad.Trans (MonadIO)
 import           Data.Aeson
-import qualified Data.ByteString.Lazy.Char8 as BS8
 import           Data.Time.Clock
 import           GHC.Generics
 import           Model.Types
@@ -49,7 +48,3 @@ instance ToJSON Message
 
 class (MonadIO io) => Progress io where
   progress :: Message -> io ()
-
-
-instance Progress IO where
-  progress =  BS8.putStrLn . encode

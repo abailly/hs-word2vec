@@ -5,6 +5,7 @@
 module Model where
 
 import           Control.Monad       (foldM)
+import           Control.Monad.Trans (MonadIO, liftIO)
 import           Data.Array.Repa     ((:.) (..), All (..), Any (..), Array,
                                       DIM1, DIM2, U, Z (..), computeP, foldP,
                                       fromListUnboxed, ix1, ix2, slice, sumP,
@@ -20,9 +21,6 @@ import           System.Random       (RandomGen, getStdGen, random)
 import           Window
 import           Words.Dictionary
 
-
-debug :: String -> IO ()
-debug _  = return ()
 
 -- | Raw coefficients of given word
 --
@@ -58,7 +56,7 @@ similarity m u v = do
   sumP (vecU *^ vecV) >>= return.(!Z)
 
 -- | Train a model using a dictionary and a list of sentences
-trainModel :: Int -> Dictionary -> [[String]] -> IO Model
+trainModel :: (Progress m) => Int -> Dictionary -> [[String]] -> m Model
 trainModel numberOfFeatures dict sentences = do
   theModel <- fromDictionary numberOfFeatures dict
   let alpha = 0.001
@@ -75,41 +73,44 @@ trainModel numberOfFeatures dict sentences = do
 -- * Iterate over all words in the window, updating the underlying neural network
 --
 -- The updated model is returned along with the total number of words it has been trained on.
-trainSentence :: Double
-              -> (Int, Model)
-              -> [String]
-              -> IO (Int, Model)
+trainSentence :: (Progress m)
+                 => Double
+                 -> (Int, Model)
+                 -> [String]
+                 -> m (Int, Model)
 trainSentence alpha (count,!m) sentence = do
   let len = length sentence
-  start <- getCurrentTime
+  start <- liftIO getCurrentTime
   progress $ TrainingSentence count len
-  g <- getStdGen
+  g <- liftIO getStdGen
   m'<- foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
-  end <- getCurrentTime
+  end <- liftIO getCurrentTime
   progress $ TrainedSentence (diffUTCTime end start)
   return (count + len,m')
 
 
-trainWindow :: Double            -- alpha threshold
-          -> Model               -- model to train
-          -> (String,[String])   -- prefix, word, suffix to select window around word
-          -> IO Model            -- updated model
+trainWindow :: (Progress m)
+               => Double            -- alpha threshold
+               -> Model               -- model to train
+               -> (String,[String])   -- prefix, word, suffix to select window around word
+               -> m Model            -- updated model
 trainWindow alpha !m (w, ws) = progress (TrainingWindow alpha w ws) >>
                                foldM (trainWord alpha w) m (filter (/= w) ws)
 
 -- |Update a single row of a matrix with a vector at given index.
 updateLayer :: Vector -> Int -> Layer -> Layer
-updateLayer v x = I.adjust (const v) x
+updateLayer v = I.adjust (const v)
 
 -- | Train model on a single word, given a reference word
 --
 -- Uses skipgram training method to train model given two "close" words.
 -- Code is a direct transposition of C code into Haskell using Mutable arrays.
-trainWord :: Double    -- alpha threshold
-          -> String    -- reference word
-          -> Model     -- model to train
-          -> String    -- word to learn
-          -> IO Model
+trainWord :: (Progress m)
+             => Double    -- alpha threshold
+             -> String    -- reference word
+             -> Model     -- model to train
+             -> String    -- word to learn
+             -> m Model
 trainWord alpha ref m word = do
   progress $ TrainWord word ref
 
@@ -117,8 +118,6 @@ trainWord alpha ref m word = do
       Just (Coding _ _ huff points) = M.lookup ref h
       Just (Coding index' _ _ _) = M.lookup word h
       layerSize = modelSize m
-      vocabSize = numberOfWords m
-      layerIndices = [0..layerSize -1]
 
       s0 = syn0 m
 
@@ -129,9 +128,10 @@ trainWord alpha ref m word = do
   progress $ InitialWordVector index' l0
 
   -- update a single point
-  let updatePoint :: (Array U DIM1 Double, Layer) ->
-                     (Int, Bin) ->
-                     IO (Array U DIM1 Double, Layer)
+  let updatePoint :: (Progress m)
+                     => (Array U DIM1 Double, Layer)
+                     -> (Int, Bin)
+                     -> m (Array U DIM1 Double, Layer)
       updatePoint (neu1e,s1) (p,b) = do
         -- dot product of two vectors
         let l1 = s1 I.! p
@@ -159,8 +159,8 @@ trainWord alpha ref m word = do
   return $ m { syn0 = updateLayer neu1e index' s0, syn1 = s1' }
 
 -- |Construct a model from a Dictionary
-fromDictionary :: Int -> Dictionary -> IO Model
-fromDictionary numberOfFeatures d@(Dict dict size len) = model size numberOfFeatures >>= return . \ m -> m { vocabulary = d }
+fromDictionary :: (MonadIO m) => Int -> Dictionary -> m Model
+fromDictionary numberOfFeatures d@(Dict _ size len) = model size numberOfFeatures >>= return . \ m -> m { vocabulary = d }
 
 mostFrequentWords :: Int -> Model -> [ String ]
 mostFrequentWords len = take len . orderedWords . vocabulary
@@ -170,12 +170,13 @@ mostFrequentWords len = take len . orderedWords . vocabulary
 -- The output connections are initialized to 0 while the hidden connections are
 -- initialized to random values in the [-0.5,+0.5] interval, then divided by the number of
 -- columns.
-model :: Int        -- number of words
-      -> Int        -- number of features (dimensions)
-      -> IO Model
+model :: (MonadIO m)
+         => Int        -- number of words
+         -> Int        -- number of features (dimensions)
+         -> m Model
 model numWords dim = do
   let wordsIndex = [0..numWords-1]
-  vecs <- mapM (const $ randomVector dim) wordsIndex
+  vecs <- mapM (const $ liftIO $ randomVector dim) wordsIndex
   let s0 = I.fromList (zip wordsIndex vecs)
   let nulls = map (const $ R.fromListUnboxed (Z :. dim) (replicate dim 0)) wordsIndex
   let s1 = I.fromList (zip wordsIndex nulls)

@@ -1,5 +1,6 @@
 module Concurrent(runInThreadPool) where
 
+import Data.Functor(void)
 import Control.Monad(replicateM)
 import Control.Concurrent.MVar(newEmptyMVar,
                                takeMVar,
@@ -29,7 +30,7 @@ runInThreadPool numThreads ids compute= do
   inChan  <- newEmptyMVar
   outChan <- newEmptyMVar
   tids <- replicateM numThreads (forkIO $ doDownload compute inChan outChan)
-  forkIO $ mapM_ (putMVar inChan) ids
+  void $ forkIO $ mapM_ (putMVar inChan) ids
   files <- mapM (const $ takeMVar outChan) ids
   mapM_ killThread tids
   return files
