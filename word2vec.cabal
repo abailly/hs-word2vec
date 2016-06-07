@@ -81,3 +81,14 @@ Test-Suite word2vec-test
   hs-source-dirs:     test
   main-is:       word2vec-test.hs
   build-depends: base, doctest, hspec, hmatrix, word2vec
+
+-- Benchmark pca-bench
+--   type:             exitcode-stdio-1.0
+--   hs-source-dirs:   bench
+--   main-is:          MainBenchmark.hs
+--   build-depends:    base,
+--                     criterion,
+--                     word2vec,
+--                     random
+--   ghc-options:      -Wall
+--                     -O2  
