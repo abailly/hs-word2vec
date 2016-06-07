@@ -35,6 +35,7 @@ Library
                  network-uri ,
                  colour ,
                  data-default-class,
+                 hmatrix-nipals,
                  unordered-containers, deepseq, vector
   hs-source-dirs:     src
   exposed-modules: Display, Model, Words, Crawl, Log,
@@ -87,6 +88,6 @@ Benchmark pca-bench
   hs-source-dirs:   bench
   main-is:          MainBenchmark.hs
   build-depends:    base,
-                    criterion, hmatrix, random, word2vec
+                    criterion, hmatrix, hmatrix-nipals, random, word2vec
   ghc-options:      -Wall
                     -O2  

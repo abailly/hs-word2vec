@@ -1,3 +1,6 @@
 [submodule "subhask"]
 	path = subhask
 	url =  git@github.com:abailly/subhask.git
+[submodule "hmatrix-nipals"]
+	path = hmatrix-nipals
+	url = git@github.com:abailly/hmatrix-nipals.git

@@ -1,6 +1,7 @@
 flags: {}
 packages:
   - '.'
+  - hmatrix-nipals
 extra-deps:
   - tokenize-0.3.0
   # - cassava-0.4.3.1

@@ -4,20 +4,30 @@
 module PCA where
 
 import           Debug.Trace
-import           Model.Types           (Layer, layerToList)
+import           Model.Types                  (Layer, layerToList)
 import           Numeric.LinearAlgebra
+import           Numeric.LinearAlgebra.NIPALS
 
 type Vec = Vector Double
 type Mat = Matrix Double
 
 
------------------------------------------------------
--- * Standard (Full) PCA Computation
--- https://github.com/albertoruiz/hmatrix/blob/master/examples/pca1.hs
-
 -- | Turn a Layer into a (transposed) Matrix for purpose of PCA.
 toMatrix :: Int -> Int -> Layer -> Mat
 toMatrix r c = tr . (r >< c) . layerToList
+
+
+--------------------------------------------------
+-- * NIPALS Algorithm
+
+pcaNipals :: Int -> Mat -> [ Vec ]
+pcaNipals 0 _       = []
+pcaNipals n dataSet = let (pc1, _ , residual) = firstPC dataSet
+                      in  pc1 : pcaNipals (n - 1) residual
+
+-----------------------------------------------------
+-- * Standard (Full) PCA Computation
+-- https://github.com/albertoruiz/hmatrix/blob/master/examples/pca1.hs
 
 -- | Run *Principal Component Analysis* on given Matrix and returns requested number
 -- of most significant dimensions.
@@ -50,24 +60,29 @@ pca'' n dataSet = tr (pcaMat <> tr dataSet)
 
 -- | Computes a list of top PCA components for given matrix
 fastPCA :: Int -> Matrix Double -> [ Vector Double ]
-fastPCA n dataSet = let (_,cov) = meanCov dataSet       -- compute covariance matrix
-                        p = 1
+fastPCA n dataSet = fastPCARec n dataSet []
 
-                        phi_p :: Vector Double
-                        phi_p = unitary $ konst 1 (cols dataSet)
+fastPCARec :: Int -> Matrix Double -> [ Vector Double ] -> [ Vector Double ]
+fastPCARec 0 _       _ = []
+fastPCARec n dataSet phis =
+  let (_,cov) = meanCov dataSet       -- compute covariance matrix
 
-                        gram_schmidt :: Vector Double -> [ Vector Double ] -> Vector Double
-                        gram_schmidt phip phis = let gs = phip - sum (map (\ phi_j -> cmap (* (phip <.> phi_j)) phi_j) phis)
-                                                 in trace ("gram-Schmidt:  " ++ show gs) $ gs
+      phi_p :: Vector Double
+      phi_p = unitary $ konst 1 (cols dataSet)
 
-                        go :: [ Vector Double ] -> Vector Double
-                        go (phi:phis) = let phi_p_new = trace ("phi: " ++ show phi) $ cov #> phi
-                                            norm_phi  = trace ("phi_p_new: " ++ show phi_p_new) $ unitary $ gram_schmidt phi_p_new phis
-                                            conv      = trace ("norm_phi: " ++ show norm_phi) $ abs (norm_phi <.> phi - 1) < peps
-                                        in  if conv
-                                            then norm_phi
-                                            else go (norm_phi:phis)
-                    in [go [phi_p]]
+      gram_schmidt :: Vector Double -> [ Vector Double ] -> Vector Double
+      gram_schmidt phip phis = phip - sum (map (\ phi_j -> cmap (* (phip <.> phi_j)) phi_j) phis)
+
+      go :: Vector Double -> Vector Double
+      go phi = let phi_p_new = cov #> phi
+                   norm_phi  = unitary $ gram_schmidt phi_p_new phis
+                   conv      = abs (norm_phi <.> phi - 1) < peps
+               in  if conv
+                   then norm_phi
+                   else go norm_phi
+
+      new_phi = go phi_p
+  in new_phi : fastPCARec (n-1) dataSet (new_phi:phis)
 
 
 ----------------------------------------------
@@ -76,12 +91,21 @@ fastPCA n dataSet = let (_,cov) = meanCov dataSet       -- compute covariance ma
 -- http://theory.stanford.edu/~tim/s15/l/l8.pdf
 
 fastPCA' :: Int -> Matrix Double -> [ Vector Double ]
-fastPCA' n dataSet = let seed  = tr dataSet <> dataSet
-                         v_0  = unitary $ konst 1 (cols dataSet)
-                         go v = let v'     = seed #> v
-                                    norm_v = unitary v'
-                                    stop   = abs (norm_v <.> unitary v - 1) < peps
-                                in if stop
-                                   then norm_v
-                                   else go v'
-                     in [go v_0]
+fastPCA' n dataSet = fastPCARec' n seed
+  where
+    seed = tr dataSet <> dataSet
+
+    fastPCARec' 0 _        = []
+    fastPCARec' n dataSet  =
+      let v_0  = unitary $ konst 1 (cols dataSet)
+          go v = let v'     = dataSet #> v
+                     unit_v = unitary v'
+                     stop   = abs (unit_v <.> unitary v - 1) < peps
+                 in if stop
+                    then unit_v
+                    else go v'
+          new_v = go v_0
+          norm = norm_2 new_v
+          dataSet' = dataSet - cmap (* norm) (new_v `outer` new_v)
+      in new_v : fastPCARec' (n-1) dataSet'
+
