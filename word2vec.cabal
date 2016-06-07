@@ -40,7 +40,7 @@ Library
   exposed-modules: Display, Model, Words, Crawl, Log,
                    Words.Dictionary, Model.Types, Model.IO, PCA
   other-modules: Concurrent, Huffman, Window
-  ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision -fprof-auto
+  ghc-options:        -Wall -threaded -rtsopts -O3 -fexcess-precision -fprof-auto 
 
 Executable words
   main-is: word2vec.hs
@@ -82,13 +82,11 @@ Test-Suite word2vec-test
   main-is:       word2vec-test.hs
   build-depends: base, doctest, hspec, hmatrix, word2vec
 
--- Benchmark pca-bench
---   type:             exitcode-stdio-1.0
---   hs-source-dirs:   bench
---   main-is:          MainBenchmark.hs
---   build-depends:    base,
---                     criterion,
---                     word2vec,
---                     random
---   ghc-options:      -Wall
---                     -O2  
+Benchmark pca-bench
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          MainBenchmark.hs
+  build-depends:    base,
+                    criterion, hmatrix, random, word2vec
+  ghc-options:      -Wall
+                    -O2  

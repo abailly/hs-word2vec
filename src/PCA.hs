@@ -18,8 +18,8 @@ toMatrix r c = tr . (r >< c) . layerToList
 -- | Run *Principal Component Analysis* on given Matrix and returns requested number
 -- of most significant dimensions.
 -- creates the compression and decompression functions from the desired number of components
-pca :: Int -> Mat -> (Vec -> Vec , Vec -> Vec)
-pca n dataSet = (encode,decode)
+pca :: Int -> Mat -> (Mat, Vec, Vec -> Vec , Vec -> Vec)
+pca n dataSet = (vp, m, encode,decode)
   where
     encode x = vp #> (x - m)
     decode x = x <# vp + m
@@ -32,4 +32,9 @@ pca' :: Int -> Mat -> (Int -> [Double])
 pca' n dataSet = toList . enc . (mat' !!)
   where
     mat' = toRows dataSet
-    (enc,_) = pca n dataSet
+    (_,_,enc,_) = pca n dataSet
+
+pca'' :: Int -> Mat -> Mat
+pca'' n dataSet = tr (pcaMat <> tr dataSet)
+  where
+    (pcaMat,_,_,_) = pca n dataSet

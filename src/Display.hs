@@ -18,31 +18,37 @@ import           Model.Types
 import           PCA
 import           Words.Dictionary
 
+
+type WordPoints = H.HashMap String [Double]
+
 -- | Compute 2D mapping of words from a model.
 --
 -- We first transform the syn0 values of model into a Matrix of doubles
 -- then compute 2 first PCA from this matrix. The first 2 PCAs are zipped along with each corresponding
 -- word from the vocabulary to produce a vector of tuples with coordinates
-pcaAnalysis :: Model -> [(String, [Double])]
+pcaAnalysis :: Model -> WordPoints
 pcaAnalysis m =
   let matrix       = toMatrix (numberOfWords m) (modelSize m) (syn0 m)
       pcf          = pca' 2 matrix
       indexedWords = orderedWords (vocabulary m)
       pcs          = map pcf [0 .. length indexedWords - 1]
-      wordsAndVecs = zip indexedWords pcs
+      wordsAndVecs = H.fromList $ zip indexedWords pcs
   in wordsAndVecs
 
 -- |Draw  a chart of the X most frequent words in a model using PCA dimensions.
-drawSelectedWords :: [(String,[Double])]  -- ^Result of PCA analysis from model
+drawSelectedWords :: WordPoints  -- ^Result of PCA analysis from model
                   -> [String]                  -- ^Selected words to plot
                   -> Renderable ()             -- ^The output from Chart
 drawSelectedWords vectors selectedWords = let
-  points = plot_points_style .~ filledCircles 2 (opaque red)
-           $ plot_points_values .~ [(x * 1000,y * 1000) |  (l,x:y:_) <- vectors, l `elem` selectedWords]
+  coord [x,y] = (x * 1000,y * 1000)
+  coord e     = error $ "invalid coordinates for point " ++ show e
+
+  points  = plot_points_style .~ filledCircles 2 (opaque red)
+           $ plot_points_values .~ (map  (coord . (vectors H.!)) selectedWords)
            $ def
 
-  labels = plot_annotation_values .~ [(x * 1000 + 0.01,y * 1000 + 0.01,l) |  (l,x:y:_) <- vectors, l `elem` selectedWords]
-           $ def
+  labels = plot_annotation_values .~  [(x * 1000 + 0.01,y * 1000 + 0.01,l) |  (l,x:y:_) <- H.toList (H.filterWithKey (\ k _ -> k `elem` selectedWords) vectors) ]
+    $ def
 
   layout = layout_title .~ "Words Vector Space"
            $ layout_plots .~ [toPlot points, toPlot labels]
