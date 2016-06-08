@@ -32,11 +32,12 @@ toMatrix r c = (r >< c) . layerToList
 pcaSVD :: Int -> Mat -> (Mat, Vec, Vec -> Vec , Vec -> Vec)
 pcaSVD n dataSet = (vp, m, encode,decode)
   where
-    encode x = vp #> (x - m)
-    decode x = x <# vp + m
+    encode x = vp' #> (x - m)
+    decode x = x <# vp' + m
     (m,c) = meanCov dataSet
     (_,v) = eigSH (trustSym c)
-    vp = tr $ takeColumns n v
+    vp = takeColumns n v
+    vp' = tr vp
 
 -- | Return a function that yields the PCA vector for some index of given matrix
 pca' :: Int -> Mat -> (Int -> [Double])
@@ -51,8 +52,11 @@ pca'' n dataSet pca = tr (pcaMat <> tr dataSet)
     pcaMat = pca n dataSet
 
 pca''' :: Int -> Mat -> (Int -> Mat -> [Vec]) -> Mat
-pca''' n dataSet pca = tr (pcaMat <> tr dataSet)
+pca''' n dataSet pca = tr (pcaMat <> tr (dataSet - m'))
   where
+    (m,c) = meanCov dataSet
+    m' = fromRows $ replicate (rows dataSet) m
+    -- pca returns a list of component vectors, e.g. columns
     pcaMat = fromRows $ pca n dataSet
 
 
