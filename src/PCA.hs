@@ -93,19 +93,23 @@ fastPCARec n dataSet phis =
 fastPCA' :: Int -> Matrix Double -> [ Vector Double ]
 fastPCA' n dataSet = fastPCARec' n seed
   where
-    seed = tr dataSet <> dataSet
+    square = uncurry (==) . size
+
+    seed = if not (square dataSet)
+           then tr dataSet <> dataSet
+           else dataSet
 
     fastPCARec' 0 _        = []
-    fastPCARec' n dataSet  =
-      let v_0  = unitary $ konst 1 (cols dataSet)
-          go v = let v'     = dataSet #> v
-                     unit_v = unitary v'
-                     stop   = abs (unit_v <.> unitary v - 1) < peps
-                 in if stop
-                    then unit_v
-                    else go v'
+    fastPCARec' k mat  =
+      let v_0   = unitary $ konst 1 (cols mat)
+          go v  = let v'     = mat #> v
+                      unit_v = unitary v'
+                      stop   = abs (unit_v <.> unitary v - 1) < peps
+                  in if stop
+                     then unit_v
+                     else go v'
           new_v = go v_0
-          norm = norm_2 new_v
-          dataSet' = dataSet - cmap (* norm) (new_v `outer` new_v)
-      in new_v : fastPCARec' (n-1) dataSet'
+          mat_v = mat #> new_v
+          mat'  = mat - (mat_v `outer` new_v)
+      in new_v : fastPCARec' (k-1) mat'
 
