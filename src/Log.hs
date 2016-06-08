@@ -23,6 +23,7 @@ data Message = AnalyzingDirectory FilePath
              | TokenizedFile FilePath [ String ]
              | TokenizedFiles [[String]]
              | WritingModelFile FilePath
+             | LoadingModelFile FilePath
              | WritingPCAFile FilePath
              | WritingDiagram FilePath [ String ]
                -- Training

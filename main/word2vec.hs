@@ -82,15 +82,17 @@ runAnalysis config = do
       pcaFile     = dir </> "model.pca"
       diagramFile = dir </> "model.svg"
 
-  progress Coarse $ AnalyzingDirectory dir
   liftIO $ hSetBuffering stdout NoBuffering
 
   hasModel <- liftIO $ doesFileExist modelFile
 
-  m <- if hasModel then
-          read `fmap` liftIO (readFile modelFile)
-       else
-         analyzeDirectory (numberOfFeatures config) (corpusDirectory config)
+  m <- if hasModel
+       then do
+    progress Coarse $ LoadingModelFile modelFile
+    read `fmap` liftIO (readFile modelFile)
+       else do
+    progress Coarse $ AnalyzingDirectory dir
+    analyzeDirectory (numberOfFeatures config) (corpusDirectory config)
 
   let p = pcaAnalysis m
       top100 = mostFrequentWords 100 m
