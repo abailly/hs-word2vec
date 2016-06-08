@@ -1,7 +1,13 @@
 -- | Compute PCA from a Matrix
 --
 -- http://www.cs.otago.ac.nz/cosc453/student_tutorials/principal_components.pdf
-module PCA where
+module PCA (
+  -- * PCA Computations
+  pcaSVD, pca', pca'', pca''',
+  pcaNipals, fastPCA, fastPCA',
+  -- * Conversions
+  toMatrix, toLists
+  ) where
 
 import           Debug.Trace
 import           Model.Types                  (Layer, layerToList)
@@ -12,9 +18,9 @@ type Vec = Vector Double
 type Mat = Matrix Double
 
 
--- | Turn a Layer into a (transposed) Matrix for purpose of PCA.
+-- | Turn a Layer into a Matrix for purpose of PCA.
 toMatrix :: Int -> Int -> Layer -> Mat
-toMatrix r c = tr . (r >< c) . layerToList
+toMatrix r c = (r >< c) . layerToList
 
 -----------------------------------------------------
 -- * Standard (Full) PCA Computation
@@ -43,6 +49,11 @@ pca'' :: Int -> Mat -> (Int -> Mat -> Mat) -> Mat
 pca'' n dataSet pca = tr (pcaMat <> tr dataSet)
   where
     pcaMat = pca n dataSet
+
+pca''' :: Int -> Mat -> (Int -> Mat -> [Vec]) -> Mat
+pca''' n dataSet pca = tr (pcaMat <> tr dataSet)
+  where
+    pcaMat = fromRows $ pca n dataSet
 
 
 --------------------------------------------------

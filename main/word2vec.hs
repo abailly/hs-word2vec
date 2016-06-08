@@ -96,7 +96,7 @@ runAnalysis config = do
       top100 = mostFrequentWords 100 m
       chart = drawSelectedWords p (if null ( selectedWords config) then top100 else selectedWords config)
   when (length p /= numberOfWords m)
-    (fail $ "PCA should have same number of words than model: "++ show (length p) ++ "vs. " ++ show (numberOfWords m))
+    (fail $ "PCA should have same number of words than model: "++ show (length p) ++ " vs. " ++ show (numberOfWords m))
 
   progress Coarse $ WritingModelFile modelFile
   liftIO $ writeFile modelFile (show m)

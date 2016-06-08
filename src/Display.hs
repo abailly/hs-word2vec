@@ -29,9 +29,9 @@ type WordPoints = H.HashMap String [Double]
 pcaAnalysis :: Model -> WordPoints
 pcaAnalysis m =
   let matrix       = toMatrix (numberOfWords m) (modelSize m) (syn0 m)
-      pcf          = pca' 2 matrix
+      pcf          = pca''' 2 matrix fastPCA
       indexedWords = orderedWords (vocabulary m)
-      pcs          = map pcf [0 .. length indexedWords - 1]
+      pcs          = toLists pcf
       wordsAndVecs = H.fromList $ zip indexedWords pcs
   in wordsAndVecs
 
