@@ -18,22 +18,22 @@ spec = describe "PCA Computation" $ do
                       , [1.1, 0.9]
                       ]
 
-  it "compute PCA from known sample" $ do
-    let (_,_,enc,dec) = pca 1 raw
+  it "compute first component of PCA using SVD from known sample" $ do
+    let (m,_,enc,dec) = pca 1 raw
 
-    enc (toRows raw !! 0) `shouldBe` vector [ 0.8279701862010875 ]
+    (toRows raw !! 0 <.> toRows m !! 0) `shouldBe` 3.459112269626609
 
   it "computes first component of PCA with NIPALS from known sample" $ do
     let [ v ] = pcaNipals 1 raw
 
-    (toRows raw !! 0 <.> v) `shouldBe` 0.8279701862010875
+    (toRows raw !! 0 <.> v) `shouldBe` 3.461356337247943
 
   it "computes first component of PCA with power iteration from known sample" $ do
     let [ v ] = fastPCA' 1 raw
 
-    (toRows raw !! 0 <.> v) `shouldBe` 0.8279701862010875
+    (toRows raw !! 0 <.> v) `shouldBe` 3.461356337251494
 
   it "computes first component of fast PCA from known sample" $ do
     let [ v ] = fastPCA 1 raw
 
-    (toRows raw !! 0 <.> v) `shouldBe` 0.8279701862010875
+    (toRows raw !! 0 <.> v) `shouldBe` 3.4591122696276297
