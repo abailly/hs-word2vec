@@ -16,15 +16,6 @@ type Mat = Matrix Double
 toMatrix :: Int -> Int -> Layer -> Mat
 toMatrix r c = tr . (r >< c) . layerToList
 
-
---------------------------------------------------
--- * NIPALS Algorithm
-
-pcaNipals :: Int -> Mat -> [ Vec ]
-pcaNipals 0 _       = []
-pcaNipals n dataSet = let (pc1, _ , residual) = firstPC dataSet
-                      in  pc1 : pcaNipals (n - 1) residual
-
 -----------------------------------------------------
 -- * Standard (Full) PCA Computation
 -- https://github.com/albertoruiz/hmatrix/blob/master/examples/pca1.hs
@@ -32,8 +23,8 @@ pcaNipals n dataSet = let (pc1, _ , residual) = firstPC dataSet
 -- | Run *Principal Component Analysis* on given Matrix and returns requested number
 -- of most significant dimensions.
 -- creates the compression and decompression functions from the desired number of components
-pca :: Int -> Mat -> (Mat, Vec, Vec -> Vec , Vec -> Vec)
-pca n dataSet = (vp, m, encode,decode)
+pcaSVD :: Int -> Mat -> (Mat, Vec, Vec -> Vec , Vec -> Vec)
+pcaSVD n dataSet = (vp, m, encode,decode)
   where
     encode x = vp #> (x - m)
     decode x = x <# vp + m
@@ -46,13 +37,21 @@ pca' :: Int -> Mat -> (Int -> [Double])
 pca' n dataSet = toList . enc . (mat' !!)
   where
     mat' = toRows dataSet
-    (_,_,enc,_) = pca n dataSet
+    (_,_,enc,_) = pcaSVD n dataSet
 
-pca'' :: Int -> Mat -> Mat
-pca'' n dataSet = tr (pcaMat <> tr dataSet)
+pca'' :: Int -> Mat -> (Int -> Mat -> Mat) -> Mat
+pca'' n dataSet pca = tr (pcaMat <> tr dataSet)
   where
-    (pcaMat,_,_,_) = pca n dataSet
+    pcaMat = pca n dataSet
 
+
+--------------------------------------------------
+-- * NIPALS Algorithm
+
+pcaNipals :: Int -> Mat -> [ Vec ]
+pcaNipals 0 _       = []
+pcaNipals n dataSet = let (pc1, _ , residual) = firstPC dataSet
+                      in  pc1 : pcaNipals (n - 1) residual
 
 -----------------------------------------------------
 -- * Fast (Iterative) PCA Computation
@@ -67,21 +66,24 @@ fastPCARec 0 _       _ = []
 fastPCARec n dataSet phis =
   let (_,cov) = meanCov dataSet       -- compute covariance matrix
 
+      max_iter = 30
+
       phi_p :: Vector Double
       phi_p = unitary $ konst 1 (cols dataSet)
 
       gram_schmidt :: Vector Double -> [ Vector Double ] -> Vector Double
       gram_schmidt phip phis = phip - sum (map (\ phi_j -> cmap (* (phip <.> phi_j)) phi_j) phis)
 
-      go :: Vector Double -> Vector Double
-      go phi = let phi_p_new = cov #> phi
-                   norm_phi  = unitary $ gram_schmidt phi_p_new phis
-                   conv      = abs (norm_phi <.> phi - 1) < peps
-               in  if conv
-                   then norm_phi
-                   else go norm_phi
+      go :: Vector Double -> Int -> Vector Double
+      go phi k | k > max_iter = phi
+               | otherwise    = let phi_p_new = cov #> phi
+                                    norm_phi  = unitary $ gram_schmidt phi_p_new phis
+                                    conv      = abs (norm_phi <.> phi - 1) < peps
+                                in  if conv
+                                    then norm_phi
+                                    else go norm_phi (k+1)
 
-      new_phi = go phi_p
+      new_phi = go phi_p 0
   in new_phi : fastPCARec (n-1) dataSet (new_phi:phis)
 
 
