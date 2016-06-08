@@ -11,13 +11,14 @@ Cabal-version:        >= 1.2
 
 Executable word2vec
   Build-Depends: base,
-                 hmatrix >= 0.15,
+                 hmatrix >= 0.15 && < 0.17,
                  hmatrix-nipals >= 0.2,
                  heap >= 1,
-                 utf8-string >= 0.3,
+                 utf8-string >= 0.3 && < 1,
                  regex-tdfa >= 1.1,
                  tokenize >= 0.1,
                  random >= 1.0,
+                 containers,
                  array >= 0.4,
                  time >= 1.4,
                  process >= 1.1,
@@ -48,6 +49,7 @@ Executable crawl
                  tagsoup >= 0.13,
                  http-conduit >= 2.0,
                  network >= 2.4,
+                 network-uri,
                  HTTP >= 4000.2
   hs-source-dirs:     .
   main-is:            arxiv.hs

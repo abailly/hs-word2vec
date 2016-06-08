@@ -1,18 +1,15 @@
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
 -- | Assign codes and inner layer to each word according to Huffman coding
 module Huffman(Code,
                Bin(..),
                Coding(..),
                huffmanEncode,
                asNum) where
-import Data.HashMap.Strict(empty,
-                         insert,
-                         HashMap,
-                         toList,
-                         fromList)
-import qualified Data.Heap as H
-import Data.Maybe(fromJust)
+import           Data.HashMap.Strict (HashMap, empty, fromList, insert, toList)
+import qualified Data.Heap           as H
+import           Data.Maybe          (fromJust)
 
 data Bin = Zero | One deriving (Eq, Ord, Show, Read)
 
@@ -25,22 +22,22 @@ asNum One  = 1
 instance Enum Code where
   toEnum n = case n `mod` 2 of
     0 -> Zero : toEnum' (n `div` 2)
-    1 -> One : toEnum' (n `div` 2) 
+    1 -> One : toEnum' (n `div` 2)
     where
       toEnum' 0 = []
       toEnum' n = toEnum n
-      
+
   fromEnum []       = 0
   fromEnum (Zero:b) = 2 * fromEnum b
   fromEnum (One:b)  = 2 * fromEnum b + 1
-  
+
 data Coding = Coding {
   -- Index of word in corpus
   index      :: Int,
-  
+
   -- Frequency of word in corpus
   frequency  :: Int,
-  
+
    -- Huffman encoding of a word, LSB first
   huffman    :: Code,
 
@@ -48,7 +45,7 @@ data Coding = Coding {
   -- The indices are built in sucha way that most frequent words have smaller indices
   wordPoints :: [Int]
   } deriving (Eq, Show, Read)
-             
+
 huffmanEncode :: HashMap String Int -> HashMap String Coding
 huffmanEncode = encode . arborify . heapify
 
@@ -63,12 +60,12 @@ ascWords :: H.MinHeap Huffman -> [ String ]
 ascWords = map unWord . H.toAscList
   where
     unWord (Leaf w _) = w
-    
+
 -- |Build a heap from hashmap of words frequencies.
--- 
+--
 -- The heap is built with the frequency as ordering factor. Each word is built into a `Word`
 -- object that contains the frequency, the index of the word relative to size of vocabulary.
---  
+--
 -- >>> ascWords $ heapify (fromList [("foo",3), ("bar",2)])
 -- ["bar","foo"]
 heapify :: HashMap String Int -> H.MinHeap Huffman
@@ -104,7 +101,7 @@ arborify h = foldl buildTree h [0.. sizeOfVocabulary -1]
                                                       [])) h2
                          Nothing        -> h
 
-                         
+
 encode :: H.MinHeap Huffman -> HashMap String Coding
 encode h = encode' (fst $ fromJust $ H.view h) [] [] empty
   where
@@ -113,9 +110,9 @@ encode h = encode' (fst $ fromJust $ H.view h) [] [] empty
                                                       m1  = encode' left (Zero:code) pts map
                                                   in
                                                    encode' right (One:code) pts m1
-  
+
 -- # Tests
-    
+
 -- | test Enum implementation
 --
 -- >>> toEnum 0 :: Code
