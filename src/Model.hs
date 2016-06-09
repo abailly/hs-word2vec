@@ -22,26 +22,6 @@ import           Window
 import           Words.Dictionary
 
 
--- | Raw coefficients of given word
---
--- Returns an array of model size length containing the raw coefficients for the given word
--- in the given model.
-coefficient :: Model -> String -> IO Vector
-coefficient m w = do
-  let h = dictionary $ vocabulary m
-  let Just (Coding wordIndex _ _ _) = M.lookup w h
-  let layerSize = modelSize m
-  let offset = wordIndex * layerSize
-  let s0 = syn0 m
-  return $ s0 I.! wordIndex
-
--- | Normalize given array to a vector of length 1.
-unitVector :: Vector -> IO Vector
-unitVector v = do
-  s <- foldP (\ s x -> s + (x * x)) 0 v
-  let norm = sqrt (s ! Z)
-  computeP $ R.map (/ norm) v
-
 
 -- | Compute similarity between two words
 --
@@ -54,6 +34,27 @@ similarity m u v = do
   vecU <- unitVector u'
   vecV <- unitVector v'
   sumP (vecU *^ vecV) >>= return.(!Z)
+    where
+      -- | Raw coefficients of given word
+      --
+      -- Returns an array of model size length containing the raw coefficients for the given word
+      -- in the given model.
+      coefficient :: Model -> String -> IO Vector
+      coefficient m w = do
+        let h = dictionary $ vocabulary m
+        let Just (Coding wordIndex _ _ _) = M.lookup w h
+        let layerSize = modelSize m
+        let s0 = syn0 m
+        return $ s0 I.! wordIndex
+
+      -- | Normalize given array to a vector of length 1.
+      unitVector :: Vector -> IO Vector
+      unitVector v = do
+        s <- foldP (\ s x -> s + (x * x)) 0 v
+        let norm = sqrt (s ! Z)
+        computeP $ R.map (/ norm) v
+
+
 
 -- | Train a model using a dictionary and a list of sentences
 trainModel :: (Progress m) => Int -> Dictionary -> [[String]] -> m Model

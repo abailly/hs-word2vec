@@ -20,7 +20,7 @@ type Vector = Array U DIM1 Double
 type Layer = I.IntMap Vector
 
 instance J.ToJSON Vector where
-  toJSON v = J.Array $ V.fromList $ map (J.toJSON) $ toList v
+  toJSON v = J.Array $ V.fromList $ map J.toJSON $ toList v
 
 data Model = Model {
   -- Number of words in the model
@@ -64,4 +64,4 @@ defaultFeatures = 100
 
 -- | Output a layer (matrix) as a list of doubles concatenating all rows
 layerToList :: Layer -> [Double]
-layerToList = concat . map toList . I.elems
+layerToList = concatMap toList . I.elems
