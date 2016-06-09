@@ -31,13 +31,13 @@ data Message = AnalyzingDirectory FilePath
              | TrainingSentence Int Int
              | TrainWord String String
              | TrainingWindow Double String [String]
-             | InitialWordVector Int Vector
-             | BeforeUpdate Int Vector
+             | InitialWordVector Int Vec
+             | BeforeUpdate Int Vec
              | DotProduct Double
              | ErrorGradient Double
-             | InputLayerAfterGradient Vector
-             | HiddenLayerAfterGradient Vector
-             | UpdatedWordVector Int Vector
+             | InputLayerAfterGradient Vec
+             | HiddenLayerAfterGradient Vec
+             | UpdatedWordVector Int Vec
              | TrainedSentence NominalDiffTime
              | Done
              deriving (Show, Generic)

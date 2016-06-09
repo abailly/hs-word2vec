@@ -11,6 +11,7 @@ module PCA (
 
 import           Debug.Trace
 import           Model.Types                  (Layer, layerToList)
+import qualified Model.Types                  as T
 import           Numeric.LinearAlgebra
 import           Numeric.LinearAlgebra.NIPALS
 
@@ -19,7 +20,7 @@ type Mat = Matrix Double
 
 
 -- | Turn a Layer into a Matrix for purpose of PCA.
-toMatrix :: Int -> Int -> Layer -> Mat
+toMatrix :: Int -> Int -> T.Mat -> Mat
 toMatrix r c = (r >< c) . layerToList
 
 -----------------------------------------------------

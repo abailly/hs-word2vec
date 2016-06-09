@@ -48,11 +48,11 @@ trainSentence :: (Progress m)
 trainSentence alpha (count,!m) sentence = do
   let len = length sentence
   start <- liftIO getCurrentTime
-  progress Fine $ TrainingSentence count len
+  progress Middle $ TrainingSentence count len
   g <- liftIO getStdGen
   m'<- foldM (trainWindow alpha) m (slidingWindows (window m) g sentence)
   end <- liftIO getCurrentTime
-  progress Fine $ TrainedSentence (diffUTCTime end start)
+  progress Middle $ TrainedSentence (diffUTCTime end start)
   return (count + len,m')
 
 
@@ -63,10 +63,6 @@ trainWindow :: (Progress m)
                -> m Model            -- updated model
 trainWindow alpha !m (w, ws) = progress Fine (TrainingWindow alpha w ws) >>
                                foldM (trainWord alpha w) m (filter (/= w) ws)
-
--- |Update a single row of a matrix with a vector at given index.
-updateLayer :: Vector -> Int -> Layer -> Layer
-updateLayer v = I.adjust (const v)
 
 -- | Train model on a single word, given a reference word
 --
@@ -82,23 +78,20 @@ trainWord alpha ref m word = do
   progress Fine $ TrainWord word ref
 
   let h = dictionary $ vocabulary m
-      Just (Coding _ _ huff points) = M.lookup ref h
-      Just (Coding index' _ _ _) = M.lookup word h
-      layerSize = modelSize m
+      Just (Coding _      _ huff points) = M.lookup ref h
+      Just (Coding index' _ _    _     ) = M.lookup word h
+      encodedPoints = zip points $ unCode huff
 
       s0 = syn0 m
-
-      neu1eInitial = fromListUnboxed (ix1 layerSize) (replicate layerSize 0)
-
       l0 = s0 I.! index'
 
   progress Fine $ InitialWordVector index' l0
 
   -- update a single point
   let updatePoint :: (Progress m)
-                     => (Array U DIM1 Double, Layer)
+                     => (Array U DIM1 Double, Mat)
                      -> (Int, Bin)
-                     -> m (Array U DIM1 Double, Layer)
+                     -> m (Array U DIM1 Double, Mat)
       updatePoint (neu1e,s1) (p,b) = do
         -- dot product of two vectors
         let l1 = s1 I.! p
@@ -118,7 +111,7 @@ trainWord alpha ref m word = do
         return (neu1e',updateLayer l1' p s1)
 
 
-  (neu1e, s1')  <- foldM updatePoint (neu1eInitial, syn1 m) (zip points $ unCode huff)
+  (neu1e, s1')  <- foldM updatePoint (initialVector m, syn1 m) encodedPoints
 
   progress Fine $ UpdatedWordVector index' neu1e
 
@@ -127,41 +120,8 @@ trainWord alpha ref m word = do
 
 -- |Construct a model from a Dictionary
 fromDictionary :: (MonadIO m) => Int -> Dictionary -> m Model
-fromDictionary numberOfFeatures d@(Dict _ size len) = model size numberOfFeatures >>= return . \ m -> m { vocabulary = d }
+fromDictionary numberOfFeatures d@(Dict _ size _) = model size numberOfFeatures >>= return . \ m -> m { vocabulary = d }
 
 mostFrequentWords :: Int -> Model -> [ String ]
 mostFrequentWords len = take len . orderedWords . vocabulary
-
--- |Initializes a model of given size
---
--- The output connections are initialized to 0 while the hidden connections are
--- initialized to random values in the [-0.5,+0.5] interval, then divided by the number of
--- columns.
-model :: (MonadIO m)
-         => Int        -- number of words
-         -> Int        -- number of features (dimensions)
-         -> m Model
-model numWords dim = do
-  let wordsIndex = [0..numWords-1]
-  vecs <- mapM (const $ liftIO $ randomVector dim) wordsIndex
-  let s0 = I.fromList (zip wordsIndex vecs)
-  let nulls = map (const $ R.fromListUnboxed (Z :. dim) (replicate dim 0)) wordsIndex
-  let s1 = I.fromList (zip wordsIndex nulls)
-  return $ Model numWords dim s0 s1 emptyDictionary defaultWindow
-    where
-      -- |Initialize a vector with random values.
-      --
-      -- Values are distributed in such a way that each cell is between -0.5 and 0.5 and
-      -- is further divided by the total number of cells row so that the sum of values in
-      -- a row is always between -0.5 and +0.5
-      --
-      randomVector :: Int       -- number of cells
-                   -> IO Vector -- initialized vector
-      randomVector cols = do
-        g <- getStdGen
-        return $ fromListUnboxed (Z :. cols) (take cols (map (/fromIntegral cols) (randoms g)))
-
-      randoms :: RandomGen g => g -> [ Double ]
-      randoms g = let (i,g') = random g
-                  in (i - 0.5) : randoms g'
 
