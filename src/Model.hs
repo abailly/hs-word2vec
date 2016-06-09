@@ -22,40 +22,6 @@ import           Window
 import           Words.Dictionary
 
 
-
--- | Compute similarity between two words
---
--- Uses the cosine similarity, eg. dot product between the two vectors. The vectors should be of
--- norm 1 and equal length.
-similarity :: Model -> String -> String -> IO Double
-similarity m u v = do
-  u'<- coefficient m u
-  v'<- coefficient m v
-  vecU <- unitVector u'
-  vecV <- unitVector v'
-  sumP (vecU *^ vecV) >>= return.(!Z)
-    where
-      -- | Raw coefficients of given word
-      --
-      -- Returns an array of model size length containing the raw coefficients for the given word
-      -- in the given model.
-      coefficient :: Model -> String -> IO Vector
-      coefficient m w = do
-        let h = dictionary $ vocabulary m
-        let Just (Coding wordIndex _ _ _) = M.lookup w h
-        let layerSize = modelSize m
-        let s0 = syn0 m
-        return $ s0 I.! wordIndex
-
-      -- | Normalize given array to a vector of length 1.
-      unitVector :: Vector -> IO Vector
-      unitVector v = do
-        s <- foldP (\ s x -> s + (x * x)) 0 v
-        let norm = sqrt (s ! Z)
-        computeP $ R.map (/ norm) v
-
-
-
 -- | Train a model using a dictionary and a list of sentences
 trainModel :: (Progress m) => Int -> Dictionary -> [[String]] -> m Model
 trainModel numberOfFeatures dict sentences = do
@@ -182,20 +148,20 @@ model numWords dim = do
   let nulls = map (const $ R.fromListUnboxed (Z :. dim) (replicate dim 0)) wordsIndex
   let s1 = I.fromList (zip wordsIndex nulls)
   return $ Model numWords dim s0 s1 emptyDictionary defaultWindow
+    where
+      -- |Initialize a vector with random values.
+      --
+      -- Values are distributed in such a way that each cell is between -0.5 and 0.5 and
+      -- is further divided by the total number of cells row so that the sum of values in
+      -- a row is always between -0.5 and +0.5
+      --
+      randomVector :: Int       -- number of cells
+                   -> IO Vector -- initialized vector
+      randomVector cols = do
+        g <- getStdGen
+        return $ fromListUnboxed (Z :. cols) (take cols (map (/fromIntegral cols) (randoms g)))
 
--- |Initialize a vector with random values.
---
--- Values are distributed in such a way that each cell is between -0.5 and 0.5 and
--- is further divided by the total number of cells row so that the sum of values in
--- a row is always between -0.5 and +0.5
---
-randomVector :: Int       -- number of cells
-             -> IO Vector -- initialized vector
-randomVector cols = do
-  g <- getStdGen
-  return $ fromListUnboxed (Z :. cols) (take cols (map (/fromIntegral cols) (randoms g)))
-
-randoms :: RandomGen g => g -> [ Double ]
-randoms g = let (i,g') = random g
-            in (i - 0.5) : randoms g'
+      randoms :: RandomGen g => g -> [ Double ]
+      randoms g = let (i,g') = random g
+                  in (i - 0.5) : randoms g'
 

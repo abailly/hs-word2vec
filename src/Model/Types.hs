@@ -4,13 +4,17 @@
 -- | Interface and core types describing a training model
 module Model.Types where
 
-import qualified Data.Aeson       as J
-import           Data.Array.Repa  ((:.) (..), Array, DIM1, U, Z (..), computeP,
-                                   foldP, fromListUnboxed, ix1, ix2, slice,
-                                   sumP, toList, toUnboxed, (!), (*^), (+^))
-import qualified Data.IntMap      as I
-import qualified Data.Vector      as V
+import qualified Data.Aeson          as J
+import           Data.Array.Repa     ((:.) (..), Array, DIM1, U, Z (..),
+                                      computeP, foldP, fromListUnboxed, ix1,
+                                      ix2, slice, sumP, toList, toUnboxed, (!),
+                                      (*^), (+^))
+import qualified Data.Array.Repa     as R
+import qualified Data.HashMap.Strict as M
+import qualified Data.IntMap         as I
+import qualified Data.Vector         as V
 import           GHC.Generics
+import           Huffman
 import           Words.Dictionary
 
 -- | Used for vector computations
@@ -54,6 +58,36 @@ data Model = Model {
   } deriving (Show, Read, Generic)
 
 instance J.ToJSON Model
+
+-- | Compute similarity between two words
+--
+-- Uses the cosine similarity, eg. dot product between the two vectors. The vectors should be of
+-- norm 1 and equal length.
+similarity :: Model -> String -> String -> IO Double
+similarity m u v = do
+  u'<- coefficient m u
+  v'<- coefficient m v
+  vecU <- unitVector u'
+  vecV <- unitVector v'
+  sumP (vecU *^ vecV) >>= return.(!Z)
+    where
+      -- | Raw coefficients of given word
+      --
+      -- Returns an array of model size length containing the raw coefficients for the given word
+      -- in the given model.
+      coefficient :: Model -> String -> IO Vector
+      coefficient m w = do
+        let h = dictionary $ vocabulary m
+        let Just (Coding wordIndex _ _ _) = M.lookup w h
+        let s0 = syn0 m
+        return $ s0 I.! wordIndex
+
+      -- | Normalize given array to a vector of length 1.
+      unitVector :: Vector -> IO Vector
+      unitVector v = do
+        s <- foldP (\ s x -> s + (x * x)) 0 v
+        let norm = sqrt (s ! Z)
+        computeP $ R.map (/ norm) v
 
 defaultWindow :: Int
 defaultWindow = 10
