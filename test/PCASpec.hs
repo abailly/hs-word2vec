@@ -19,9 +19,9 @@ spec = describe "PCA Computation" $ do
                       ]
 
   it "compute first component of PCA using SVD from known sample" $ do
-    let (m,_,enc,dec) = pca 1 raw
+    let (m,_,enc,dec) = pcaSVD 1 raw
 
-    (toRows raw !! 0 <.> toRows m !! 0) `shouldBe` 3.459112269626609
+    (toRows raw !! 0 <.> toColumns m !! 0) `shouldBe` 3.459112269626609
 
   it "computes first component of PCA with NIPALS from known sample" $ do
     let [ v ] = pcaNipals 1 raw
