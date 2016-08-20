@@ -16,18 +16,18 @@ import qualified Data.IntMap         as I
 import           Data.Time.Clock     (diffUTCTime, getCurrentTime)
 import           Huffman
 import           Log
+import           Model.Repa
 import           Model.Types
 import           System.Random       (RandomGen, getStdGen, random)
 import           Window
 import           Words.Dictionary
-
 
 -- | Train a model using a dictionary and a list of sentences
 trainModel :: (Progress m) => Int -> Dictionary -> [[String]] -> m Model
 trainModel numberOfFeatures dict sentences = do
   theModel <- fromDictionary numberOfFeatures dict
   let alpha = 0.001
-  progress Middle $ StartTraining theModel
+  progress Middle $ StartTraining (dictionaryLength dict)
   foldM (trainSentence alpha) (0, theModel) sentences >>= return.snd
 
 
@@ -85,17 +85,19 @@ trainWord alpha ref m word = do
       s0 = syn0 m
       l0 = s0 I.! index'
 
-  progress Fine $ InitialWordVector index' l0
+--  progress Fine $ InitialWordVector index'
 
   -- update a single point
   let updatePoint :: (Progress m)
-                     => (Array U DIM1 Double, Mat)
+                     => Vec
+                     -> Double
+                     -> (Vec, Mat)
                      -> (Int, Bin)
-                     -> m (Array U DIM1 Double, Mat)
-      updatePoint (neu1e,s1) (p,b) = do
+                     -> m (Vec, Mat)
+      updatePoint l0 alpha (neu1e,s1) (p,b) = do
         -- dot product of two vectors
         let l1 = s1 I.! p
-        progress Fine $ BeforeUpdate p l1
+--        progress Fine $ BeforeUpdate p (vectorize l1)
         f <- sumP (l0 *^ l1)
         progress Fine $ DotProduct (R.linearIndex f 0)
         let exp_f = exp (f ! Z)
@@ -104,16 +106,16 @@ trainWord alpha ref m word = do
         progress Fine $ ErrorGradient g
         -- apply gradient on input layer
         neu1e' <- computeP $ (R.map (*g) l1) +^ neu1e
-        progress Fine $ InputLayerAfterGradient neu1e'
+--        progress Fine $ InputLayerAfterGradient (vectorize neu1e')
         -- apply gradient on hidden layer
         l1' <- computeP $ (R.map (*g) l0) +^ l1
-        progress Fine $ HiddenLayerAfterGradient l1'
+--        progress Fine $ HiddenLayerAfterGradient (vectorize  l1')
         return (neu1e',updateLayer l1' p s1)
 
 
-  (neu1e, s1')  <- foldM updatePoint (initialVector m, syn1 m) encodedPoints
+  (neu1e, s1')  <- foldM (updatePoint l0 alpha) (initialVector m, syn1 m) encodedPoints
 
-  progress Fine $ UpdatedWordVector index' neu1e
+--  progress Fine $ UpdatedWordVector index' neu1e
 
   -- report computed gradient to input layer
   return $ m { syn0 = updateLayer neu1e index' s0, syn1 = s1' }

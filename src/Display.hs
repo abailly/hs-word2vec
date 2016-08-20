@@ -14,6 +14,7 @@ import           Data.Colour.Names
 import           Data.Default.Class
 import qualified Data.HashMap.Strict      as H
 import           Graphics.Rendering.Chart
+import           Model.Repa
 import           Model.Types
 import           PCA
 import           Words.Dictionary

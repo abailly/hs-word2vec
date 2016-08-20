@@ -20,6 +20,7 @@ import           Graphics.Rendering.Chart.Backend.Diagrams
 import           Log
 import           Model
 import           Model.IO
+import           Model.Repa
 import           Model.Types
 import           Options.Generic
 import           Prelude                                   hiding (readFile)

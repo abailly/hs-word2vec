@@ -1,6 +1,9 @@
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE DeriveGeneric             #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE GADTs                     #-}
+{-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE TypeSynonymInstances      #-}
 -- | Provides structured logging and report on training process.
 --
 -- This module mainly exposes a type for `Message`s that are output by `word2vec` when
@@ -27,17 +30,17 @@ data Message = AnalyzingDirectory FilePath
              | WritingPCAFile FilePath
              | WritingDiagram FilePath [ String ]
                -- Training
-             | StartTraining Model
+             | StartTraining Int
              | TrainingSentence Int Int
              | TrainWord String String
              | TrainingWindow Double String [String]
-             | InitialWordVector Int Vec
-             | BeforeUpdate Int Vec
+             | InitialWordVector Int WordVector
+             | BeforeUpdate Int WordVector
              | DotProduct Double
              | ErrorGradient Double
-             | InputLayerAfterGradient Vec
-             | HiddenLayerAfterGradient Vec
-             | UpdatedWordVector Int Vec
+             | InputLayerAfterGradient WordVector
+             | HiddenLayerAfterGradient WordVector
+             | UpdatedWordVector Int WordVector
              | TrainedSentence NominalDiffTime
              | Done
              deriving (Show, Generic)

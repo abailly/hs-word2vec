@@ -4,6 +4,7 @@ import           Control.Monad.Trans (liftIO)
 import           Data.List
 import           Log
 import           Model
+import           Model.Repa
 import           Model.Types
 import           System.Directory
 import           System.FilePath

@@ -1,6 +1,7 @@
 module PCABench where
 
 import           Model
+import           Model.Repa
 import           Model.Types
 import           Numeric.LinearAlgebra
 import           PCA

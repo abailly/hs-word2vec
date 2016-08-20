@@ -10,18 +10,18 @@ module PCA (
   ) where
 
 import           Debug.Trace
-import           Model.Types                  (Layer, layerToList)
-import qualified Model.Types                  as T
+-- TODO remove
+import qualified Model.Repa                   as T
+import           Model.Types                  (Layer)
 import           Numeric.LinearAlgebra
 import           Numeric.LinearAlgebra.NIPALS
 
 type Vec = Vector Double
 type Mat = Matrix Double
 
-
 -- | Turn a Layer into a Matrix for purpose of PCA.
 toMatrix :: Int -> Int -> T.Mat -> Mat
-toMatrix r c = (r >< c) . layerToList
+toMatrix r c = (r >< c) . T.layerToList
 
 -----------------------------------------------------
 -- * Standard (Full) PCA Computation
